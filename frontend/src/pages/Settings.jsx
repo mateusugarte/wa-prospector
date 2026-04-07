@@ -21,7 +21,7 @@ export default function Settings() {
           .from('wa_instances')
           .select('id, name, instance_id, status, phone, connected_at')
           .order('created_at', { ascending: false }),
-        fetch(`${API_URL}/health`).then(r => r.json()).catch(() => null),
+        fetch(`${API_URL}/health/db`).then(r => r.json()).catch(() => null),
       ]);
       setInstances(data ?? []);
       setHealth(healthRes);

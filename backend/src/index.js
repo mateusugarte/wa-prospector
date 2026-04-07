@@ -23,8 +23,13 @@ app.use(express.json());
 // Disponibiliza io globalmente para rotas/workers
 app.set('io', io);
 
-// Health check
-app.get('/health', async (req, res) => {
+// Health check leve — usado pelo EasyPanel/Docker, não faz query no banco
+app.get('/health', (req, res) => {
+  res.json({ ok: true });
+});
+
+// Health check completo — testa conexão real com Supabase
+app.get('/health/db', async (req, res) => {
   try {
     await testConnection();
     res.json({ ok: true, supabase: 'connected' });
