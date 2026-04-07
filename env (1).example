@@ -1,0 +1,16 @@
+# ============================================================
+# WA PROSPECTOR — Frontend Environment Variables
+# Copiar este arquivo para frontend/.env e preencher os valores
+# NUNCA commitar o .env com valores reais
+# ============================================================
+
+# ------------------------------------------------------------
+# SUPABASE (usar ANON KEY no frontend — respeita RLS)
+# ------------------------------------------------------------
+VITE_SUPABASE_URL=https://jlzckqjggdzpzqiuvgcv.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsemNrcWpnZ2R6cHpxaXV2Z2N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NzIwNDcsImV4cCI6MjA3MDM0ODA0N30.RHIuHvQkKshKBCUzfsq0S8Zm8hcz8RLZUd47YMQ-cU4
+
+# ------------------------------------------------------------
+# BACKEND API
+# ------------------------------------------------------------
+VITE_API_URL=http://localhost:3001
