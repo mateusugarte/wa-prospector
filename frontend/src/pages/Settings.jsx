@@ -53,11 +53,11 @@ function ConnectModal({ onClose, onConnected }) {
         setError(`Erro QR: ${data.error || res.status}`);
         return;
       }
-      const qr = typeof data === 'string' ? data : (data.qrcode || data.base64 || data.qr || data.image || data.data);
-      if (qr) {
-        setQrcode(qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`);
+      if (data.qrcode) {
+        setQrcode(data.qrcode);
+        setError(null);
       } else {
-        setError(`QR não encontrado. Campos recebidos: ${Object.keys(data).join(', ')}`);
+        setError(`QR não encontrado. Campos: ${(data.fields || []).join(', ')}`);
       }
     } catch (err) {
       setError(`Falha ao buscar QR: ${err.message}`);
@@ -67,15 +67,16 @@ function ConnectModal({ onClose, onConnected }) {
   function startPolling(id) {
     pollRef.current = setInterval(async () => {
       try {
+        // Atualiza o QR code a cada 5s (expira em ~20s na UazAPI)
+        await loadQrCode(id);
+
+        // Verifica se já conectou
         const res = await fetch(`${API_URL}/api/instances/${id}/status`);
         const data = await res.json();
         if (data.isConnected) {
           clearInterval(pollRef.current);
           setStep('connected');
           setTimeout(() => { onConnected(); }, 1500);
-        } else {
-          // Atualiza QR code periodicamente (expira a cada ~20s)
-          await loadQrCode(id);
         }
       } catch (_) {}
     }, 5000);

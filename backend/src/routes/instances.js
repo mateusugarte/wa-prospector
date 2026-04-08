@@ -53,14 +53,24 @@ router.delete('/:instanceToken', async (req, res) => {
 
 // GET /api/instances/:instanceToken/qrcode
 router.get('/:instanceToken/qrcode', async (req, res) => {
-  console.log('[qrcode] chamado para token:', req.params.instanceToken.slice(0, 8) + '...');
   try {
-    const data = await uazapi.getQRCodeByToken(req.params.instanceToken);
-    console.log('[qrcode] resposta keys:', Object.keys(data));
-    console.log('[qrcode] resposta:', JSON.stringify(data).slice(0, 300));
-    res.json(data);
+    const raw = await uazapi.getQRCodeByToken(req.params.instanceToken);
+
+    // Normaliza para sempre retornar { qrcode: "data:image/png;base64,..." }
+    let qrcode;
+    if (typeof raw === 'string') {
+      qrcode = raw.startsWith('data:') ? raw : `data:image/png;base64,${raw}`;
+    } else if (raw && typeof raw === 'object') {
+      const q = raw.qrcode || raw.base64 || raw.qr || raw.image || raw.data;
+      if (q) qrcode = String(q).startsWith('data:') ? String(q) : `data:image/png;base64,${q}`;
+    }
+
+    if (!qrcode) {
+      return res.status(422).json({ error: 'QR code não encontrado', fields: Object.keys(raw || {}) });
+    }
+
+    res.json({ qrcode });
   } catch (err) {
-    console.log('[qrcode] erro:', extractError(err));
     res.status(500).json({ error: extractError(err) });
   }
 });
