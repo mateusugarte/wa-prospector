@@ -1,13 +1,15 @@
 const router = require('express').Router();
 const { supabase } = require('../lib/supabase');
-const { ApifyClient } = require('apify-client');
+const axios = require('axios');
 
-function getApify() {
+const APIFY_ACTOR = 'compass~crawler-google-places';
+
+function getApifyToken() {
   const token = process.env.APIFY_TOKEN;
   if (!token || token === 'SEU_TOKEN_APIFY_AQUI') {
     throw new Error('APIFY_TOKEN não configurado no servidor');
   }
-  return new ApifyClient({ token });
+  return token;
 }
 
 // GET /api/contacts/niches — lista nichos com totais e disponíveis
@@ -63,32 +65,55 @@ router.get('/available', async (req, res) => {
   }
 });
 
-// POST /api/contacts/import — importar via Apify
+// POST /api/contacts/import — importar via Apify Google Places
 router.post('/import', async (req, res) => {
   try {
-    const { niche, actorId, searchTerms, maxResults = 100 } = req.body;
-    if (!niche || !actorId || !searchTerms) {
-      return res.status(400).json({ error: 'niche, actorId e searchTerms são obrigatórios' });
+    const { niche, searchTerms, locationQuery = '', maxResults = 100 } = req.body;
+
+    if (!niche || !searchTerms) {
+      return res.status(400).json({ error: 'niche e searchTerms são obrigatórios' });
     }
 
-    const apify = getApify();
+    const token = getApifyToken();
     const terms = searchTerms.split('\n').map(s => s.trim()).filter(Boolean);
-    const perTerm = Math.max(1, Math.ceil(maxResults / terms.length));
+    const perTerm = Math.max(1, Math.ceil(Number(maxResults) / terms.length));
 
-    console.log(`[apify] iniciando | nicho: ${niche} | actor: ${actorId} | termos: ${terms.length}`);
-    res.json({ status: 'running', message: 'Importação iniciada, aguarde...' });
+    console.log(`[apify] iniciando | nicho: ${niche} | termos: ${terms.join(', ')} | local: ${locationQuery || 'sem filtro'} | por termo: ${perTerm}`);
 
-    // Roda em background para não segurar a requisição
+    // Responde imediatamente e processa em background
+    res.json({ status: 'running', message: 'Importação iniciada, aguarde alguns minutos.' });
+
     setImmediate(async () => {
       try {
-        const run = await apify.actor(actorId).call({
-          searchStringsArray: terms,
+        const body = {
+          includeWebResults: false,
+          language: 'PT',
+          locationQuery: locationQuery || '',
           maxCrawledPlacesPerSearch: perTerm,
-          language: 'pt',
-        }, { waitSecs: 600 });
+          maxImages: 0,
+          maximumLeadsEnrichmentRecords: 0,
+          scrapeContacts: false,
+          scrapeDirectories: false,
+          scrapeImageAuthors: false,
+          scrapePlaceDetailPage: false,
+          scrapeReviewsPersonalData: true,
+          scrapeTableReservationProvider: false,
+          searchStringsArray: terms,
+          skipClosedPlaces: false,
+        };
 
-        const { items } = await apify.dataset(run.defaultDatasetId).listItems();
-        console.log(`[apify] ${items.length} resultados recebidos`);
+        const url = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}`;
+        const { data: items } = await axios.post(url, body, {
+          timeout: 600000, // 10 min — scraping pode demorar
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        console.log(`[apify] ${Array.isArray(items) ? items.length : 0} resultados recebidos`);
+
+        if (!Array.isArray(items) || items.length === 0) {
+          console.log('[apify] nenhum resultado retornado');
+          return;
+        }
 
         const contacts = [];
         for (const item of items) {
@@ -101,17 +126,21 @@ router.post('/import', async (req, res) => {
 
           if (rawPhone) {
             const phone = String(rawPhone).replace(/\D/g, '');
-            if (phone.length >= 10) contacts.push({ phone, name: name || null, niche });
+            if (phone.length >= 10) {
+              contacts.push({ phone, name: name || null, niche });
+            }
           }
         }
 
         if (contacts.length > 0) {
           await supabase.from('contacts')
             .upsert(contacts, { onConflict: 'phone,niche', ignoreDuplicates: true });
+          console.log(`[apify] ${contacts.length} contatos salvos no nicho: ${niche}`);
+        } else {
+          console.log('[apify] nenhum contato com telefone encontrado nos resultados');
         }
-        console.log(`[apify] ${contacts.length} contatos salvos no nicho: ${niche}`);
       } catch (err) {
-        console.error('[apify] erro na importação:', err.message);
+        console.error('[apify] erro na importação:', err.response?.data || err.message);
       }
     });
   } catch (err) {
