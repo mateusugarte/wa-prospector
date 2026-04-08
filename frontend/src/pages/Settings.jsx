@@ -158,6 +158,7 @@ export default function Settings() {
   const [health, setHealth] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [disconnecting, setDisconnecting] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   async function load() {
     const [{ data }, healthRes] = await Promise.all([
@@ -181,6 +182,17 @@ export default function Settings() {
       await load();
     } finally {
       setDisconnecting(null);
+    }
+  }
+
+  async function handleDelete(instanceId) {
+    if (!confirm('Remover esta instância do sistema?')) return;
+    setDeleting(instanceId);
+    try {
+      await fetch(`${API_URL}/api/instances/${instanceId}`, { method: 'DELETE' });
+      await load();
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -265,7 +277,7 @@ export default function Settings() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                       <span className={`text-sm ${s.color}`}>{s.label}</span>
@@ -273,9 +285,16 @@ export default function Settings() {
                     <button
                       onClick={() => handleDisconnect(inst.instance_id)}
                       disabled={disconnecting === inst.instance_id}
-                      className="text-xs text-gray-400 hover:text-red-400 disabled:opacity-50 px-2 py-1 transition-colors"
+                      className="text-xs text-gray-400 hover:text-yellow-400 disabled:opacity-50 px-2 py-1 transition-colors"
                     >
                       {disconnecting === inst.instance_id ? '...' : 'Desconectar'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(inst.instance_id)}
+                      disabled={deleting === inst.instance_id}
+                      className="text-xs text-gray-400 hover:text-red-400 disabled:opacity-50 px-2 py-1 transition-colors"
+                    >
+                      {deleting === inst.instance_id ? '...' : 'Excluir'}
                     </button>
                   </div>
                 </div>

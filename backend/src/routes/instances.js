@@ -11,7 +11,7 @@ function extractError(err) {
   return err.message;
 }
 
-// POST /api/instances/connect — registra instância existente pelo token
+// POST /api/instances/connect — registra ou atualiza instância existente pelo token
 router.post('/connect', async (req, res) => {
   try {
     const { name, instanceToken } = req.body;
@@ -19,15 +19,33 @@ router.post('/connect', async (req, res) => {
       return res.status(400).json({ error: 'name e instanceToken são obrigatórios' });
     }
 
-    // Salva no Supabase com o token da instância
+    // Upsert: se já existe pelo instance_id, apenas atualiza o nome
     const { data, error } = await supabase
       .from('wa_instances')
-      .insert({ name, instance_id: instanceToken, status: 'connecting' })
+      .upsert(
+        { name, instance_id: instanceToken, status: 'connecting' },
+        { onConflict: 'instance_id' }
+      )
       .select()
       .single();
 
     if (error) throw new Error(error.message);
     res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: extractError(err) });
+  }
+});
+
+// DELETE /api/instances/:instanceToken — remove instância do sistema
+router.delete('/:instanceToken', async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('wa_instances')
+      .delete()
+      .eq('instance_id', req.params.instanceToken);
+
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: extractError(err) });
   }
