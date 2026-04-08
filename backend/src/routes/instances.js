@@ -37,6 +37,8 @@ router.post('/connect', async (req, res) => {
 router.get('/:instanceToken/qrcode', async (req, res) => {
   try {
     const data = await uazapi.getQRCodeByToken(req.params.instanceToken);
+    console.log('[uazapi] qrcode response keys:', Object.keys(data));
+    console.log('[uazapi] qrcode response:', JSON.stringify(data).slice(0, 300));
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: extractError(err) });
