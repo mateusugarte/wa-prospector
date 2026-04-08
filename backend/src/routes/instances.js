@@ -60,17 +60,15 @@ router.get('/:instanceToken/qrcode', async (req, res) => {
     console.log('[qrcode] tipo raw:', typeof raw, '| keys:', typeof raw === 'object' ? Object.keys(raw) : 'n/a');
     console.log('[qrcode] raw completo:', JSON.stringify(raw).slice(0, 500));
 
-    // Normaliza para sempre retornar { qrcode: "data:image/png;base64,..." }
-    let qrcode;
-    if (typeof raw === 'string') {
-      qrcode = raw.startsWith('data:') ? raw : `data:image/png;base64,${raw}`;
-    } else if (raw && typeof raw === 'object') {
-      const q = raw.qrcode || raw.base64 || raw.qr || raw.image || raw.data;
-      if (q) qrcode = String(q).startsWith('data:') ? String(q) : `data:image/png;base64,${q}`;
-    }
+    // Extrai o base64 de onde quer que esteja na resposta
+    const rawStr = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    const match = rawStr.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+    const qrcode = match ? match[0] : null;
+
+    console.log('[qrcode] encontrado:', !!qrcode, '| tamanho:', qrcode?.length);
 
     if (!qrcode) {
-      return res.status(422).json({ error: 'QR code não encontrado', fields: Object.keys(raw || {}) });
+      return res.status(422).json({ error: 'QR code não encontrado na resposta' });
     }
 
     res.json({ qrcode });
