@@ -2,6 +2,16 @@ const router = require('express').Router();
 const uazapi = require('../services/uazapi');
 const { supabase } = require('../lib/supabase');
 
+function extractError(err) {
+  // Axios errors com resposta HTML/texto da API externa
+  if (err.response) {
+    const ct = err.response.headers?.['content-type'] || '';
+    if (ct.includes('json')) return err.response.data?.message || err.response.data?.error || JSON.stringify(err.response.data);
+    return `UazAPI retornou status ${err.response.status}: ${String(err.response.data).slice(0, 200)}`;
+  }
+  return err.message;
+}
+
 // POST /api/instances — cria instância no UazAPI e salva no Supabase
 router.post('/', async (req, res) => {
   try {
@@ -20,7 +30,7 @@ router.post('/', async (req, res) => {
     if (error) throw new Error(error.message);
     res.json({ ...data, uazapi: result });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: extractError(err) });
   }
 });
 
@@ -30,7 +40,7 @@ router.get('/:instanceId/qrcode', async (req, res) => {
     const data = await uazapi.getQRCode(req.params.instanceId);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: extractError(err) });
   }
 });
 
@@ -53,7 +63,7 @@ router.get('/:instanceId/status', async (req, res) => {
 
     res.json({ ...data, isConnected });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: extractError(err) });
   }
 });
 
@@ -67,7 +77,7 @@ router.post('/:instanceId/disconnect', async (req, res) => {
       .eq('instance_id', req.params.instanceId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: extractError(err) });
   }
 });
 

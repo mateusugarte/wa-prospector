@@ -11,7 +11,7 @@ function getClient() {
   return axios.create({
     baseURL,
     headers: {
-      Authorization: `Bearer ${token}`,
+      admintoken: token,
       'Content-Type': 'application/json',
     },
     timeout: 15000,
