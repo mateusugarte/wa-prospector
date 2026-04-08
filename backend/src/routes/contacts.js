@@ -108,14 +108,23 @@ router.post('/import', async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
         });
 
-        console.log(`[apify] ${Array.isArray(items) ? items.length : 0} resultados recebidos`);
+        const total = Array.isArray(items) ? items.length : 0;
+        console.log(`[apify] ${total} resultados recebidos`);
 
         if (!Array.isArray(items) || items.length === 0) {
           console.log('[apify] nenhum resultado retornado');
           return;
         }
 
+        // Log dos campos disponíveis no primeiro item para diagnóstico
+        if (items[0]) {
+          const keys = Object.keys(items[0]);
+          console.log(`[apify] campos disponíveis: ${keys.join(', ')}`);
+          console.log(`[apify] phone do 1º item: ${items[0].phone ?? 'ausente'} | title: ${items[0].title ?? items[0].name ?? 'ausente'}`);
+        }
+
         const contacts = [];
+        let semTelefone = 0;
         for (const item of items) {
           const rawPhone =
             item.phone || item.phoneNumber || item.telefone ||
@@ -128,16 +137,26 @@ router.post('/import', async (req, res) => {
             const phone = String(rawPhone).replace(/\D/g, '');
             if (phone.length >= 10) {
               contacts.push({ phone, name: name || null, niche });
+            } else {
+              console.log(`[apify] telefone inválido ignorado: "${rawPhone}" → "${phone}"`);
             }
+          } else {
+            semTelefone++;
           }
         }
 
+        console.log(`[apify] com telefone: ${contacts.length} | sem telefone: ${semTelefone}`);
+
         if (contacts.length > 0) {
-          await supabase.from('contacts')
+          const { error: upsertErr } = await supabase.from('contacts')
             .upsert(contacts, { onConflict: 'phone,niche', ignoreDuplicates: true });
-          console.log(`[apify] ${contacts.length} contatos salvos no nicho: ${niche}`);
+          if (upsertErr) {
+            console.error('[apify] erro ao salvar no banco:', upsertErr.message);
+          } else {
+            console.log(`[apify] ✓ ${contacts.length} contatos salvos no nicho: ${niche}`);
+          }
         } else {
-          console.log('[apify] nenhum contato com telefone encontrado nos resultados');
+          console.log('[apify] nenhum contato com telefone válido encontrado');
         }
       } catch (err) {
         console.error('[apify] erro na importação:', err.response?.data || err.message);
