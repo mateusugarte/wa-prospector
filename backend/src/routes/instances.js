@@ -13,6 +13,7 @@ function extractError(err) {
 
 // POST /api/instances/connect — registra ou atualiza instância existente pelo token
 router.post('/connect', async (req, res) => {
+  console.log('[connect] chamado, name:', req.body?.name);
   try {
     const { name, instanceToken } = req.body;
     if (!name || !instanceToken) {
@@ -53,8 +54,10 @@ router.delete('/:instanceToken', async (req, res) => {
 
 // GET /api/instances/:instanceToken/qrcode
 router.get('/:instanceToken/qrcode', async (req, res) => {
+  console.log('[qrcode] chamado');
   try {
     const raw = await uazapi.getQRCodeByToken(req.params.instanceToken);
+    console.log('[qrcode] tipo raw:', typeof raw, '| keys:', typeof raw === 'object' ? Object.keys(raw) : 'string');
 
     // Normaliza para sempre retornar { qrcode: "data:image/png;base64,..." }
     let qrcode;
