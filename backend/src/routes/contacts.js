@@ -87,7 +87,7 @@ router.post('/import', async (req, res) => {
       try {
         const body = {
           includeWebResults: false,
-          language: 'PT',
+          language: 'pt-BR',
           locationQuery: locationQuery || '',
           maxCrawledPlacesPerSearch: perTerm,
           maxImages: 0,
