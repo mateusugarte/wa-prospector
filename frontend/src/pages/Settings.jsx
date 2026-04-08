@@ -53,7 +53,7 @@ function ConnectModal({ onClose, onConnected }) {
         setError(`Erro QR: ${data.error || res.status}`);
         return;
       }
-      const qr = data.qrcode || data.base64 || data.qr || data.image || data.data;
+      const qr = typeof data === 'string' ? data : (data.qrcode || data.base64 || data.qr || data.image || data.data);
       if (qr) {
         setQrcode(qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`);
       } else {
