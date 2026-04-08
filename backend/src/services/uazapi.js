@@ -121,31 +121,31 @@ async function disconnect(instanceId) {
 
 async function getQRCodeByToken(instanceToken) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.get('/qrcode');
+  const { data } = await client.post('/instance/connect', { qrcode: true });
   return data;
 }
 
 async function getStatusByToken(instanceToken) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.get('/status');
+  const { data } = await client.get('/instance/status');
   return data;
 }
 
 async function disconnectByToken(instanceToken) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/logout');
+  const { data } = await client.post('/instance/logout');
   return data;
 }
 
 async function sendTextByToken(instanceToken, phone, message) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/send/text', { phone, message });
+  const { data } = await client.post('/message/send', { phone, message });
   return data;
 }
 
 async function sendTypingByToken(instanceToken, phone, duration) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/send/typing', { phone, duration });
+  const { data } = await client.post('/message/typing', { phone, duration });
   return data;
 }
 
