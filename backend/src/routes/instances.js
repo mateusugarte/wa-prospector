@@ -57,7 +57,8 @@ router.get('/:instanceToken/qrcode', async (req, res) => {
   console.log('[qrcode] chamado');
   try {
     const raw = await uazapi.getQRCodeByToken(req.params.instanceToken);
-    console.log('[qrcode] tipo raw:', typeof raw, '| keys:', typeof raw === 'object' ? Object.keys(raw) : 'string');
+    console.log('[qrcode] tipo raw:', typeof raw, '| keys:', typeof raw === 'object' ? Object.keys(raw) : 'n/a');
+    console.log('[qrcode] raw completo:', JSON.stringify(raw).slice(0, 500));
 
     // Normaliza para sempre retornar { qrcode: "data:image/png;base64,..." }
     let qrcode;
