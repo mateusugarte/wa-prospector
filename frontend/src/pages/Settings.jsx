@@ -49,9 +49,19 @@ function ConnectModal({ onClose, onConnected }) {
     try {
       const res = await fetch(`${API_URL}/api/instances/${id}/qrcode`);
       const data = await res.json();
-      const qr = data.qrcode || data.base64 || data.qr || data.image;
-      if (qr) setQrcode(qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`);
-    } catch (_) {}
+      if (!res.ok) {
+        setError(`Erro QR: ${data.error || res.status}`);
+        return;
+      }
+      const qr = data.qrcode || data.base64 || data.qr || data.image || data.data;
+      if (qr) {
+        setQrcode(qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`);
+      } else {
+        setError(`QR não encontrado. Campos recebidos: ${Object.keys(data).join(', ')}`);
+      }
+    } catch (err) {
+      setError(`Falha ao buscar QR: ${err.message}`);
+    }
   }
 
   function startPolling(id) {

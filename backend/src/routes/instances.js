@@ -53,12 +53,14 @@ router.delete('/:instanceToken', async (req, res) => {
 
 // GET /api/instances/:instanceToken/qrcode
 router.get('/:instanceToken/qrcode', async (req, res) => {
+  console.log('[qrcode] chamado para token:', req.params.instanceToken.slice(0, 8) + '...');
   try {
     const data = await uazapi.getQRCodeByToken(req.params.instanceToken);
-    console.log('[uazapi] qrcode response keys:', Object.keys(data));
-    console.log('[uazapi] qrcode response:', JSON.stringify(data).slice(0, 300));
+    console.log('[qrcode] resposta keys:', Object.keys(data));
+    console.log('[qrcode] resposta:', JSON.stringify(data).slice(0, 300));
     res.json(data);
   } catch (err) {
+    console.log('[qrcode] erro:', extractError(err));
     res.status(500).json({ error: extractError(err) });
   }
 });
