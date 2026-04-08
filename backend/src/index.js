@@ -5,6 +5,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const { testConnection } = require('./lib/supabase');
+const instancesRouter = require('./routes/instances');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,6 +23,9 @@ app.use(express.json());
 
 // Disponibiliza io globalmente para rotas/workers
 app.set('io', io);
+
+// Rotas da API
+app.use('/api/instances', instancesRouter);
 
 // Health check leve — usado pelo EasyPanel/Docker, não faz query no banco
 app.get('/health', (req, res) => {
