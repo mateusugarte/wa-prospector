@@ -4,6 +4,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
   { to: '/campaigns', label: 'Campanhas', icon: '📢' },
+  { to: '/contacts', label: 'Contatos', icon: '👥' },
   { to: '/templates', label: 'Templates', icon: '📝' },
   { to: '/settings', label: 'WhatsApp', icon: '📱' },
 ];

@@ -119,6 +119,18 @@ async function _execute(campaignId, runner, io) {
         sent_at: new Date().toISOString(),
       }).eq('id', dispatch.id);
       await supabase.rpc('increment_campaign_sent', { p_campaign_id: campaignId });
+      // Incrementa sent_count do contato se existir no banco
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('id, sent_count')
+        .eq('phone', dispatch.phone)
+        .maybeSingle();
+      if (contact) {
+        await supabase
+          .from('contacts')
+          .update({ sent_count: contact.sent_count + 1, last_sent_at: new Date().toISOString() })
+          .eq('id', contact.id);
+      }
       io?.emit('dispatch:sent', { campaignId, phone: dispatch.phone });
       console.log(`[campaign] ✓ enviado para ${dispatch.phone}`);
     } catch (err) {

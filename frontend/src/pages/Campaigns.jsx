@@ -11,16 +11,21 @@ const STATUS_LABELS = {
   cancelled: { label: 'Encerrada', color: 'bg-red-900 text-red-300' },
 };
 
-function CampaignModal({ onClose, onSaved }) {
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState('');
-  const [templateId, setTemplateId] = useState('');
-  const [instanceId, setInstanceId] = useState('');
+function CampaignModal({ existing, onClose, onSaved }) {
+  const isEdit = !!existing;
+
+  const [mode, setMode] = useState('phones'); // 'phones' | 'niche'
+  const [name, setName] = useState(existing?.name || '');
+  const [templateId, setTemplateId] = useState(existing?.template_id || '');
+  const [instanceId, setInstanceId] = useState(existing?.instance_id || '');
   const [intervalOption, setIntervalOption] = useState('');
   const [phones, setPhones] = useState('');
+  const [niche, setNiche] = useState('');
+  const [quantity, setQuantity] = useState(50);
   const [templates, setTemplates] = useState([]);
   const [instances, setInstances] = useState([]);
   const [intervals, setIntervals] = useState([]);
+  const [niches, setNiches] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -29,10 +34,18 @@ function CampaignModal({ onClose, onSaved }) {
       supabase.from('templates').select('id, name').order('name'),
       supabase.from('wa_instances').select('instance_id, name').eq('status', 'connected'),
       fetch(`${API_URL}/api/campaigns/intervals`).then(r => r.json()).catch(() => []),
-    ]).then(([{ data: tpls }, { data: insts }, ivls]) => {
+      fetch(`${API_URL}/api/contacts/niches`).then(r => r.json()).catch(() => []),
+    ]).then(([{ data: tpls }, { data: insts }, ivls, nch]) => {
       setTemplates(tpls ?? []);
       setInstances(insts ?? []);
       setIntervals(ivls ?? []);
+      setNiches(Array.isArray(nch) ? nch : []);
+
+      // Pré-seleciona intervalo se editando
+      if (existing && ivls?.length) {
+        const found = ivls.find(i => i.min === existing.interval_min && i.max === existing.interval_max);
+        if (found) setIntervalOption(found.label);
+      }
     });
   }, []);
 
@@ -40,27 +53,61 @@ function CampaignModal({ onClose, onSaved }) {
   const phoneCount = phones.split('\n').map(p => p.trim().replace(/\D/g, '')).filter(p => p.length >= 10).length;
 
   async function handleSave() {
-    if (!name || !instanceId || !intervalOption || phoneCount === 0) {
-      setError('Preencha todos os campos e adicione ao menos um número.');
+    if (!name || !instanceId || !intervalOption) {
+      setError('Preencha nome, instância e intervalo.');
       return;
     }
+    if (!isEdit) {
+      if (mode === 'phones' && phoneCount === 0) {
+        setError('Adicione ao menos um número válido.');
+        return;
+      }
+      if (mode === 'niche' && !niche) {
+        setError('Selecione um nicho.');
+        return;
+      }
+    }
+
     setSaving(true);
     setError(null);
+
     try {
-      const res = await fetch(`${API_URL}/api/campaigns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (isEdit) {
+        const res = await fetch(`${API_URL}/api/campaigns/${existing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            template_id: templateId || null,
+            instance_id: instanceId,
+            interval_min: selectedInterval.min,
+            interval_max: selectedInterval.max,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+      } else {
+        const body = {
           name,
           template_id: templateId || null,
           instance_id: instanceId,
           interval_min: selectedInterval.min,
           interval_max: selectedInterval.max,
-          phones,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+        };
+        if (mode === 'phones') {
+          body.phones = phones;
+        } else {
+          body.niche = niche;
+          body.quantity = Number(quantity);
+        }
+        const res = await fetch(`${API_URL}/api/campaigns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+      }
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -68,11 +115,13 @@ function CampaignModal({ onClose, onSaved }) {
     }
   }
 
+  const selectedNiche = niches.find(n => n.niche === niche);
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-xl shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h3 className="font-semibold text-white">Nova campanha</h3>
+          <h3 className="font-semibold text-white">{isEdit ? 'Editar campanha' : 'Nova campanha'}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white text-lg leading-none">✕</button>
         </div>
 
@@ -141,28 +190,84 @@ function CampaignModal({ onClose, onSaved }) {
                 </button>
               ))}
             </div>
-            {intervalOption && (
-              <p className="text-xs text-gray-600 mt-1">
-                Cada envio terá minutos + segundos + ms aleatórios dentro do intervalo
-              </p>
-            )}
           </div>
 
-          {/* Números */}
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">
-              Números de telefone *
-              {phoneCount > 0 && <span className="ml-2 text-green-400">{phoneCount} número{phoneCount !== 1 ? 's' : ''} válido{phoneCount !== 1 ? 's' : ''}</span>}
-            </label>
-            <textarea
-              value={phones}
-              onChange={e => setPhones(e.target.value)}
-              rows={6}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500 resize-none font-mono"
-              placeholder={'5511999999999\n5521988888888\n5531977777777'}
-            />
-            <p className="text-xs text-gray-600 mt-1">Um número por linha com código do país (55 para Brasil)</p>
-          </div>
+          {/* Leads — apenas na criação */}
+          {!isEdit && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-sm text-gray-400">Modo de leads</label>
+                <div className="flex rounded-lg overflow-hidden border border-gray-700 ml-auto">
+                  <button
+                    onClick={() => setMode('phones')}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'phones' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  >
+                    Manual
+                  </button>
+                  <button
+                    onClick={() => setMode('niche')}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'niche' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  >
+                    Por nicho
+                  </button>
+                </div>
+              </div>
+
+              {mode === 'phones' ? (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Números de telefone *
+                    {phoneCount > 0 && <span className="ml-2 text-green-400">{phoneCount} válido{phoneCount !== 1 ? 's' : ''}</span>}
+                  </label>
+                  <textarea
+                    value={phones}
+                    onChange={e => setPhones(e.target.value)}
+                    rows={5}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500 resize-none font-mono"
+                    placeholder={'5511999999999\n5521988888888'}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">Um número por linha com código do país (55 para Brasil)</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm text-gray-400 mb-1 block">Nicho *</label>
+                    <select
+                      value={niche}
+                      onChange={e => setNiche(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                    >
+                      <option value="">Selecionar nicho</option>
+                      {niches.map(n => (
+                        <option key={n.niche} value={n.niche}>
+                          {n.niche} ({n.available} disponíveis)
+                        </option>
+                      ))}
+                    </select>
+                    {niches.length === 0 && (
+                      <p className="text-xs text-yellow-500 mt-1">Nenhum contato importado ainda</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 mb-1 block">
+                      Quantidade *
+                      {selectedNiche && (
+                        <span className="ml-2 text-gray-500">máx. {selectedNiche.available} disponíveis</span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      value={quantity}
+                      onChange={e => setQuantity(e.target.value)}
+                      min={1}
+                      max={selectedNiche?.available || 9999}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
         </div>
@@ -176,7 +281,14 @@ function CampaignModal({ onClose, onSaved }) {
             disabled={saving}
             className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
           >
-            {saving ? 'Criando...' : `Criar campanha${phoneCount > 0 ? ` (${phoneCount} leads)` : ''}`}
+            {saving
+              ? (isEdit ? 'Salvando...' : 'Criando...')
+              : isEdit
+                ? 'Salvar alterações'
+                : mode === 'niche'
+                  ? `Criar campanha (${quantity} leads)`
+                  : `Criar campanha${phoneCount > 0 ? ` (${phoneCount} leads)` : ''}`
+            }
           </button>
         </div>
       </div>
@@ -188,12 +300,13 @@ export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [acting, setActing] = useState(null); // campaignId em ação
+  const [editCampaign, setEditCampaign] = useState(null);
+  const [acting, setActing] = useState(null);
 
   async function load() {
     const { data } = await supabase
       .from('campaigns')
-      .select('id, name, status, total_leads, sent_count, failed_count, created_at')
+      .select('id, name, status, total_leads, sent_count, failed_count, interval_min, interval_max, template_id, instance_id, created_at')
       .order('created_at', { ascending: false });
     setCampaigns(data ?? []);
     setLoading(false);
@@ -201,7 +314,6 @@ export default function Campaigns() {
 
   useEffect(() => {
     load();
-    // Atualiza a cada 5s para refletir progresso
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -222,13 +334,19 @@ export default function Campaigns() {
       return (
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setEditCampaign(c)}
+            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Editar
+          </button>
+          <button
             onClick={() => action(c.id, 'start')}
             disabled={busy}
             className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
           >
             {busy ? '...' : '▶ Iniciar'}
           </button>
-          {c.status !== 'draft' && (
+          {c.status === 'paused' && (
             <button
               onClick={() => action(c.id, 'stop')}
               disabled={busy}
@@ -275,6 +393,13 @@ export default function Campaigns() {
     <div className="p-8">
       {showModal && (
         <CampaignModal onClose={() => setShowModal(false)} onSaved={() => { setShowModal(false); load(); }} />
+      )}
+      {editCampaign && (
+        <CampaignModal
+          existing={editCampaign}
+          onClose={() => setEditCampaign(null)}
+          onSaved={() => { setEditCampaign(null); load(); }}
+        />
       )}
 
       <div className="flex items-center justify-between mb-6">

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Campaigns from './pages/Campaigns';
+import Contacts from './pages/Contacts';
 import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 
@@ -14,6 +15,7 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="campaigns" element={<Campaigns />} />
+          <Route path="contacts" element={<Contacts />} />
           <Route path="templates" element={<Templates />} />
           <Route path="settings" element={<Settings />} />
         </Route>

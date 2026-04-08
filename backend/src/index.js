@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const { testConnection } = require('./lib/supabase');
 const instancesRouter = require('./routes/instances');
 const campaignsRouter = require('./routes/campaigns');
+const contactsRouter = require('./routes/contacts');
 const { resetStaleRunners } = require('./services/campaign-runner');
 
 const app = express();
@@ -29,6 +30,7 @@ app.set('io', io);
 // Rotas da API
 app.use('/api/instances', instancesRouter);
 app.use('/api/campaigns', campaignsRouter);
+app.use('/api/contacts', contactsRouter);
 
 // Health check leve — usado pelo EasyPanel/Docker, não faz query no banco
 app.get('/health', (req, res) => {
