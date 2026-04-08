@@ -1,7 +1,7 @@
 const { supabase } = require('../lib/supabase');
 const uazapi = require('./uazapi');
 const { spin } = require('./spinner');
-const { getRandomDelay, formatDelay, sleep } = require('./scheduler');
+const { getRandomDelay, formatDelay, getTypingDelay, sleep } = require('./scheduler');
 
 // Mapa de campanhas ativas: campaignId -> { paused, stopped }
 const activeRunners = new Map();
@@ -94,7 +94,7 @@ async function _execute(campaignId, runner, io) {
     // Próximo dispatch pendente
     const { data: dispatches } = await supabase
       .from('dispatches')
-      .select('id, phone')
+      .select('id, phone, message_sent, typing_delay')
       .eq('campaign_id', campaignId)
       .eq('status', 'pending')
       .order('created_at')
@@ -108,11 +108,14 @@ async function _execute(campaignId, runner, io) {
     }
 
     const dispatch = dispatches[0];
-    const message = spin(template.content);
+    // Usa mensagem pré-gerada pelo shuffle, ou gera agora
+    const message = dispatch.message_sent || spin(template.content);
+    // Usa delay pré-definido pelo shuffle, ou gera agora
+    const typingDelay = dispatch.typing_delay ?? getTypingDelay();
 
     // Envia mensagem
     try {
-      await uazapi.sendTextByToken(campaign.instance_id, dispatch.phone, message);
+      await uazapi.sendTextByToken(campaign.instance_id, dispatch.phone, message, typingDelay);
       await supabase.from('dispatches').update({
         status: 'sent',
         message_sent: message,
@@ -132,7 +135,7 @@ async function _execute(campaignId, runner, io) {
           .eq('id', contact.id);
       }
       io?.emit('dispatch:sent', { campaignId, phone: dispatch.phone });
-      console.log(`[campaign] ✓ enviado para ${dispatch.phone}`);
+      console.log(`[campaign] ✓ enviado para ${dispatch.phone} (delay: ${typingDelay}ms)`);
     } catch (err) {
       await supabase.from('dispatches').update({
         status: 'failed',

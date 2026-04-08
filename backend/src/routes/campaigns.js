@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const { supabase } = require('../lib/supabase');
 const { startCampaign, pauseCampaign, stopCampaign, isRunning } = require('../services/campaign-runner');
-const { INTERVAL_OPTIONS } = require('../services/scheduler');
+const { INTERVAL_OPTIONS, getTypingDelay } = require('../services/scheduler');
+const { spin } = require('../services/spinner');
 
 // GET /api/campaigns/intervals
 router.get('/intervals', (req, res) => {
@@ -135,6 +136,77 @@ router.get('/:id', async (req, res) => {
     const { data, error } = await supabase.from('campaigns').select('*').eq('id', req.params.id).single();
     if (error) throw new Error(error.message);
     res.json({ ...data, is_running: isRunning(req.params.id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/campaigns/:id/dispatches — lista os disparos da campanha
+router.get('/:id/dispatches', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('dispatches')
+      .select('id, phone, status, message_sent, typing_delay, sent_at, error')
+      .eq('campaign_id', req.params.id)
+      .order('created_at');
+    if (error) throw new Error(error.message);
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/campaigns/:id/shuffle — pré-gera mensagem única + delay de digitação por contato
+router.post('/:id/shuffle', async (req, res) => {
+  try {
+    const { data: campaign, error: campErr } = await supabase
+      .from('campaigns')
+      .select('template_id, status')
+      .eq('id', req.params.id)
+      .single();
+
+    if (campErr || !campaign) return res.status(404).json({ error: 'Campanha não encontrada' });
+    if (campaign.status === 'running') return res.status(400).json({ error: 'Pause a campanha antes de misturar' });
+    if (!campaign.template_id) return res.status(400).json({ error: 'Campanha sem template — selecione um template primeiro' });
+
+    const { data: template, error: tplErr } = await supabase
+      .from('templates')
+      .select('content')
+      .eq('id', campaign.template_id)
+      .single();
+
+    if (tplErr || !template) return res.status(400).json({ error: 'Template não encontrado' });
+
+    const { data: dispatches, error: dispErr } = await supabase
+      .from('dispatches')
+      .select('id')
+      .eq('campaign_id', req.params.id)
+      .eq('status', 'pending');
+
+    if (dispErr) throw new Error(dispErr.message);
+    if (!dispatches || dispatches.length === 0) {
+      return res.status(400).json({ error: 'Nenhum disparo pendente para misturar' });
+    }
+
+    // Gera mensagem única e delay individual para cada contato
+    const updates = dispatches.map(d => ({
+      id: d.id,
+      message_sent: spin(template.content),
+      typing_delay: getTypingDelay(),
+    }));
+
+    // Atualiza em lotes de 50
+    const batchSize = 50;
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize);
+      const { error: upErr } = await supabase
+        .from('dispatches')
+        .upsert(batch, { onConflict: 'id' });
+      if (upErr) throw new Error(upErr.message);
+    }
+
+    console.log(`[shuffle] ${updates.length} mensagens geradas para campanha ${req.params.id}`);
+    res.json({ ok: true, count: updates.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

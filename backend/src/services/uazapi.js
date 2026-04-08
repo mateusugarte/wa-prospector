@@ -137,9 +137,11 @@ async function disconnectByToken(instanceToken) {
   return data;
 }
 
-async function sendTextByToken(instanceToken, number, text) {
+async function sendTextByToken(instanceToken, number, text, delay) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/send/text', { number, text });
+  const body = { number, text };
+  if (delay !== undefined) body.delay = delay;
+  const { data } = await client.post('/send/text', body);
   return data;
 }
 

@@ -38,8 +38,19 @@ function formatDelay(delayMs) {
   return `${minutes}m ${seconds}s ${ms}ms`;
 }
 
+/**
+ * Delay de digitação aleatório por contato: 2000–5000ms
+ * Segundos e milissegundos são independentes para cada contato.
+ * @returns {number} delay em milissegundos
+ */
+function getTypingDelay() {
+  const seconds = 2 + Math.floor(Math.random() * 4);   // 2, 3, 4 ou 5 segundos
+  const ms      = Math.floor(Math.random() * 1000);    // 0–999ms
+  return Math.min(seconds * 1000 + ms, 5000);          // máx 5000ms
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { getRandomDelay, formatDelay, sleep, INTERVAL_OPTIONS };
+module.exports = { getRandomDelay, formatDelay, getTypingDelay, sleep, INTERVAL_OPTIONS };
