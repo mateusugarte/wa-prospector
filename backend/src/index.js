@@ -6,6 +6,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { testConnection } = require('./lib/supabase');
 const instancesRouter = require('./routes/instances');
+const campaignsRouter = require('./routes/campaigns');
+const { resetStaleRunners } = require('./services/campaign-runner');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +28,7 @@ app.set('io', io);
 
 // Rotas da API
 app.use('/api/instances', instancesRouter);
+app.use('/api/campaigns', campaignsRouter);
 
 // Health check leve — usado pelo EasyPanel/Docker, não faz query no banco
 app.get('/health', (req, res) => {
@@ -52,6 +55,8 @@ io.on('connection', (socket) => {
 
 // Start
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   console.log(`[server] Backend rodando em http://0.0.0.0:${PORT}`);
+  await resetStaleRunners();
+  console.log('[server] Campanhas travadas resetadas para pausado');
 });

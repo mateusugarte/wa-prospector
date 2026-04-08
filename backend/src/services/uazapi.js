@@ -137,15 +137,15 @@ async function disconnectByToken(instanceToken) {
   return data;
 }
 
-async function sendTextByToken(instanceToken, phone, message) {
+async function sendTextByToken(instanceToken, number, text) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/message/send', { phone, message });
+  const { data } = await client.post('/send/text', { number, text });
   return data;
 }
 
-async function sendTypingByToken(instanceToken, phone, duration) {
+async function sendTypingByToken(instanceToken, number, duration) {
   const client = getInstanceClient(instanceToken);
-  const { data } = await client.post('/message/typing', { phone, duration });
+  const { data } = await client.post('/send/typing', { number, duration });
   return data;
 }
 
