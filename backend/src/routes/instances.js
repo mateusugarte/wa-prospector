@@ -3,7 +3,6 @@ const uazapi = require('../services/uazapi');
 const { supabase } = require('../lib/supabase');
 
 function extractError(err) {
-  // Axios errors com resposta HTML/texto da API externa
   if (err.response) {
     const ct = err.response.headers?.['content-type'] || '';
     if (ct.includes('json')) return err.response.data?.message || err.response.data?.error || JSON.stringify(err.response.data);
@@ -12,42 +11,42 @@ function extractError(err) {
   return err.message;
 }
 
-// POST /api/instances — cria instância no UazAPI e salva no Supabase
-router.post('/', async (req, res) => {
+// POST /api/instances/connect — registra instância existente pelo token
+router.post('/connect', async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'name é obrigatório' });
+    const { name, instanceToken } = req.body;
+    if (!name || !instanceToken) {
+      return res.status(400).json({ error: 'name e instanceToken são obrigatórios' });
+    }
 
-    const result = await uazapi.createInstance(name);
-    const instanceId = result.instanceId || result.id || result.instance_id || result.name;
-
+    // Salva no Supabase com o token da instância
     const { data, error } = await supabase
       .from('wa_instances')
-      .insert({ name, instance_id: instanceId, status: 'connecting' })
+      .insert({ name, instance_id: instanceToken, status: 'connecting' })
       .select()
       .single();
 
     if (error) throw new Error(error.message);
-    res.json({ ...data, uazapi: result });
-  } catch (err) {
-    res.status(500).json({ error: extractError(err) });
-  }
-});
-
-// GET /api/instances/:instanceId/qrcode
-router.get('/:instanceId/qrcode', async (req, res) => {
-  try {
-    const data = await uazapi.getQRCode(req.params.instanceId);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: extractError(err) });
   }
 });
 
-// GET /api/instances/:instanceId/status
-router.get('/:instanceId/status', async (req, res) => {
+// GET /api/instances/:instanceToken/qrcode
+router.get('/:instanceToken/qrcode', async (req, res) => {
   try {
-    const data = await uazapi.getStatus(req.params.instanceId);
+    const data = await uazapi.getQRCodeByToken(req.params.instanceToken);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: extractError(err) });
+  }
+});
+
+// GET /api/instances/:instanceToken/status
+router.get('/:instanceToken/status', async (req, res) => {
+  try {
+    const data = await uazapi.getStatusByToken(req.params.instanceToken);
 
     const isConnected = data.status === 'connected' || data.connected === true || data.state === 'open';
     if (isConnected) {
@@ -58,7 +57,7 @@ router.get('/:instanceId/status', async (req, res) => {
           phone: data.phone || data.phoneNumber || data.jid?.split('@')[0] || null,
           connected_at: new Date().toISOString(),
         })
-        .eq('instance_id', req.params.instanceId);
+        .eq('instance_id', req.params.instanceToken);
     }
 
     res.json({ ...data, isConnected });
@@ -67,14 +66,14 @@ router.get('/:instanceId/status', async (req, res) => {
   }
 });
 
-// POST /api/instances/:instanceId/disconnect
-router.post('/:instanceId/disconnect', async (req, res) => {
+// POST /api/instances/:instanceToken/disconnect
+router.post('/:instanceToken/disconnect', async (req, res) => {
   try {
-    await uazapi.disconnect(req.params.instanceId);
+    await uazapi.disconnectByToken(req.params.instanceToken);
     await supabase
       .from('wa_instances')
       .update({ status: 'disconnected', connected_at: null })
-      .eq('instance_id', req.params.instanceId);
+      .eq('instance_id', req.params.instanceToken);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: extractError(err) });

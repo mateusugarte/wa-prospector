@@ -1,5 +1,21 @@
 const axios = require('axios');
 
+// Cliente para operações de instância (usa token da instância)
+function getInstanceClient(instanceToken) {
+  const baseURL = process.env.UAZAPI_BASE_URL;
+  if (!baseURL) throw new Error('UAZAPI_BASE_URL não configurado');
+
+  return axios.create({
+    baseURL,
+    headers: {
+      token: instanceToken,
+      'Content-Type': 'application/json',
+    },
+    timeout: 15000,
+  });
+}
+
+// Cliente para operações administrativas (usa admin token)
 function getClient() {
   const baseURL = process.env.UAZAPI_BASE_URL;
   const token = process.env.UAZAPI_TOKEN;
@@ -101,7 +117,46 @@ async function disconnect(instanceId) {
   return data;
 }
 
+// ── Operações por token de instância ─────────────────────────────────────────
+
+async function getQRCodeByToken(instanceToken) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.get('/qrcode');
+  return data;
+}
+
+async function getStatusByToken(instanceToken) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.get('/status');
+  return data;
+}
+
+async function disconnectByToken(instanceToken) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.post('/logout');
+  return data;
+}
+
+async function sendTextByToken(instanceToken, phone, message) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.post('/send/text', { phone, message });
+  return data;
+}
+
+async function sendTypingByToken(instanceToken, phone, duration) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.post('/send/typing', { phone, duration });
+  return data;
+}
+
+async function checkNumberByToken(instanceToken, phone) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.post('/contact/check', { phone });
+  return data;
+}
+
 module.exports = {
+  // Admin
   createInstance,
   getQRCode,
   getStatus,
@@ -109,4 +164,11 @@ module.exports = {
   sendTyping,
   checkNumber,
   disconnect,
+  // Por token de instância
+  getQRCodeByToken,
+  getStatusByToken,
+  disconnectByToken,
+  sendTextByToken,
+  sendTypingByToken,
+  checkNumberByToken,
 };

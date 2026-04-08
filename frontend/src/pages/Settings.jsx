@@ -12,30 +12,32 @@ const STATUS_INFO = {
 function ConnectModal({ onClose, onConnected }) {
   const [step, setStep] = useState('form'); // 'form' | 'qrcode' | 'connected'
   const [name, setName] = useState('');
-  const [instanceId, setInstanceId] = useState(null);
+  const [instanceToken, setInstanceToken] = useState('');
   const [qrcode, setQrcode] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const pollRef = useRef(null);
 
   async function handleCreate() {
-    if (!name.trim()) { setError('Nome é obrigatório.'); return; }
+    if (!name.trim() || !instanceToken.trim()) {
+      setError('Nome e token são obrigatórios.');
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/instances`, {
+      // Registra a instância no Supabase
+      const res = await fetch(`${API_URL}/api/instances/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), instanceToken: instanceToken.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao criar instância');
+      if (!res.ok) throw new Error(data.error || 'Erro ao registrar instância');
 
-      const id = data.instance_id || data.uazapi?.instanceId || data.uazapi?.id;
-      setInstanceId(id);
-      await loadQrCode(id);
+      await loadQrCode(instanceToken.trim());
       setStep('qrcode');
-      startPolling(id);
+      startPolling(instanceToken.trim());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -89,10 +91,19 @@ function ConnectModal({ onClose, onConnected }) {
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
                   placeholder="Ex: Vendas Principal"
                 />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Token da instância *</label>
+                <input
+                  value={instanceToken}
+                  onChange={e => setInstanceToken(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500 font-mono"
+                  placeholder="f57ab3e6-ee7d-4aec-8364-..."
+                />
+                <p className="text-xs text-gray-600 mt-1">Encontrado no painel da UazAPI → sua instância → token</p>
               </div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
             </div>
