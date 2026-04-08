@@ -82,29 +82,30 @@ router.get('/:instanceToken/status', async (req, res) => {
   try {
     const data = await uazapi.getStatusByToken(req.params.instanceToken);
 
-    // Log completo para diagnóstico
-    console.log('[status] resposta UazAPI:', JSON.stringify(data).slice(0, 400));
+    // Formato real: { instance: {...}, status: { connected: bool, loggedIn: bool, jid: string|null } }
+    const isConnected = data.status?.connected === true;
+    const phone = data.status?.jid
+      ? data.status.jid.split('@')[0]
+      : data.instance?.phone || data.instance?.profileName || null;
 
-    // UazAPI pode retornar vários formatos — cobre todos
-    const statusVal  = (data.status || data.state || data.connectionStatus || '').toLowerCase();
-    const isConnected =
-      statusVal === 'connected' ||
-      statusVal === 'open' ||
-      statusVal === 'online' ||
-      data.connected === true ||
-      data.isConnected === true;
-
-    console.log(`[status] statusVal: "${statusVal}" | isConnected: ${isConnected}`);
+    console.log(`[status] connected: ${isConnected} | jid: ${data.status?.jid} | phone: ${phone}`);
 
     if (isConnected) {
       await supabase
         .from('wa_instances')
         .update({
           status: 'connected',
-          phone: data.phone || data.phoneNumber || data.wid || data.jid?.split('@')[0] || null,
+          phone: phone,
           connected_at: new Date().toISOString(),
         })
         .eq('instance_id', req.params.instanceToken);
+    } else {
+      // Garante que o banco reflita desconexão se a API disser false
+      await supabase
+        .from('wa_instances')
+        .update({ status: 'disconnected' })
+        .eq('instance_id', req.params.instanceToken)
+        .eq('status', 'connected'); // só atualiza se estava connected, evita sobrescrever 'connecting'
     }
 
     res.json({ ...data, isConnected });

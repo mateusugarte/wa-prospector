@@ -170,6 +170,7 @@ export default function Settings() {
   const [showModal, setShowModal] = useState(false);
   const [disconnecting, setDisconnecting] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [checking, setChecking] = useState(null);
 
   async function load() {
     const [{ data }, healthRes] = await Promise.all([
@@ -182,6 +183,18 @@ export default function Settings() {
     setInstances(data ?? []);
     setHealth(healthRes);
     setLoading(false);
+  }
+
+  // Verifica status ao vivo na UazAPI e atualiza o banco
+  async function handleCheckStatus(instanceId) {
+    setChecking(instanceId);
+    try {
+      await fetch(`${API_URL}/api/instances/${instanceId}/status`);
+      // Recarrega do banco (o endpoint já atualiza o status lá)
+      await load();
+    } finally {
+      setChecking(null);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -289,10 +302,17 @@ export default function Settings() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mr-1">
                       <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                       <span className={`text-sm ${s.color}`}>{s.label}</span>
                     </div>
+                    <button
+                      onClick={() => handleCheckStatus(inst.instance_id)}
+                      disabled={checking === inst.instance_id}
+                      className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50 border border-blue-800 hover:border-blue-600 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      {checking === inst.instance_id ? 'Verificando...' : 'Verificar conexão'}
+                    </button>
                     <button
                       onClick={() => handleDisconnect(inst.instance_id)}
                       disabled={disconnecting === inst.instance_id}
