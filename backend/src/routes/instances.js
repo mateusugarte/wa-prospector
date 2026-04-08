@@ -82,13 +82,26 @@ router.get('/:instanceToken/status', async (req, res) => {
   try {
     const data = await uazapi.getStatusByToken(req.params.instanceToken);
 
-    const isConnected = data.status === 'connected' || data.connected === true || data.state === 'open';
+    // Log completo para diagnóstico
+    console.log('[status] resposta UazAPI:', JSON.stringify(data).slice(0, 400));
+
+    // UazAPI pode retornar vários formatos — cobre todos
+    const statusVal  = (data.status || data.state || data.connectionStatus || '').toLowerCase();
+    const isConnected =
+      statusVal === 'connected' ||
+      statusVal === 'open' ||
+      statusVal === 'online' ||
+      data.connected === true ||
+      data.isConnected === true;
+
+    console.log(`[status] statusVal: "${statusVal}" | isConnected: ${isConnected}`);
+
     if (isConnected) {
       await supabase
         .from('wa_instances')
         .update({
           status: 'connected',
-          phone: data.phone || data.phoneNumber || data.jid?.split('@')[0] || null,
+          phone: data.phone || data.phoneNumber || data.wid || data.jid?.split('@')[0] || null,
           connected_at: new Date().toISOString(),
         })
         .eq('instance_id', req.params.instanceToken);
