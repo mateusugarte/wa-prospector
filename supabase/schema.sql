@@ -1,50 +1,21 @@
 -- ============================================================
--- WA PROSPECTOR — Schema Supabase
+-- WA PROSPECTOR — Schema Supabase (versão atual)
 -- Aplicar no SQL Editor: https://jlzckqjggdzpzqiuvgcv.supabase.co
--- Executar TODO o conteúdo de uma vez
+-- ATENÇÃO: dropa e recria tudo — rode apenas em banco limpo
 -- ============================================================
 
 -- ============================================================
--- EXTENSÕES
+-- LIMPEZA (ordem importa por FK)
 -- ============================================================
 
-create extension if not exists "uuid-ossp";
-create extension if not exists "pgcrypto";
+drop table if exists dispatches cascade;
+drop table if exists campaigns  cascade;
+drop table if exists contacts   cascade;
+drop table if exists templates  cascade;
+drop table if exists wa_instances cascade;
 
--- ============================================================
--- ENUMS
--- ============================================================
-
-create type campaign_status as enum (
-  'draft',
-  'running',
-  'paused',
-  'completed',
-  'cancelled'
-);
-
-create type dispatch_status as enum (
-  'pending',
-  'sent',
-  'failed',
-  'retrying'
-);
-
-create type lead_source as enum (
-  'manual_upload',
-  'apify'
-);
-
-create type wa_status as enum (
-  'disconnected',
-  'connecting',
-  'connected'
-);
-
-create type campaign_mode as enum (
-  'manual',
-  'auto'
-);
+drop function if exists increment_campaign_sent(uuid);
+drop function if exists increment_campaign_failed(uuid);
 
 -- ============================================================
 -- TABELA: wa_instances
@@ -52,14 +23,14 @@ create type campaign_mode as enum (
 -- ============================================================
 
 create table wa_instances (
-  id          uuid primary key default uuid_generate_v4(),
-  name        text not null,
-  instance_id text unique not null,   -- ID retornado pela UazAPI
-  status      wa_status not null default 'disconnected',
-  phone       text,                    -- Número conectado (preenchido após conectar)
-  connected_at timestamptz,            -- Quando foi conectado pela primeira vez
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  instance_id  text unique not null,
+  status       text not null default 'disconnected', -- disconnected | connecting | connected
+  phone        text,
+  connected_at timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
 );
 
 -- ============================================================
@@ -68,9 +39,9 @@ create table wa_instances (
 -- ============================================================
 
 create table templates (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   name        text not null,
-  content     text not null,           -- Texto com sintaxe de spin: {opt1|opt2|opt3}
+  content     text not null,
   description text,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
@@ -82,227 +53,81 @@ create table templates (
 -- ============================================================
 
 create table campaigns (
-  id              uuid primary key default uuid_generate_v4(),
-  name            text not null,
-  status          campaign_status not null default 'draft',
-  mode            campaign_mode not null default 'manual',
-
-  -- Referências
-  template_id     uuid references templates(id) on delete set null,
-  wa_instance_id  uuid references wa_instances(id) on delete set null,
-
-  -- Configurações de disparo (anti-bloqueio)
-  delay_min       integer not null default 8,     -- segundos
-  delay_max       integer not null default 20,    -- segundos
-  daily_limit     integer not null default 50,    -- msgs por dia
-  hourly_limit    integer not null default 30,    -- msgs por hora
-  max_dispatches  integer,                         -- null = sem limite (dispara todos)
-
-  -- Config Apify (modo auto)
-  apify_actor     text,                            -- ex: apify/google-maps-scraper
-  apify_input     jsonb,                           -- parâmetros do actor
-
-  -- Métricas (desnormalizadas para performance)
-  total_leads     integer not null default 0,
-  sent_count      integer not null default 0,
-  failed_count    integer not null default 0,
-  pending_count   integer not null default 0,
-
-  started_at      timestamptz,
-  completed_at    timestamptz,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  status       text not null default 'draft', -- draft | running | paused | completed | cancelled
+  template_id  uuid references templates(id) on delete set null,
+  instance_id  text not null,                  -- instance_id da wa_instances (token)
+  interval_min integer not null default 8,     -- minutos
+  interval_max integer not null default 20,    -- minutos
+  total_leads  integer not null default 0,
+  sent_count   integer not null default 0,
+  failed_count integer not null default 0,
+  created_at   timestamptz not null default now()
 );
 
 -- ============================================================
--- TABELA: leads
--- Contatos importados para prospecção
+-- TABELA: contacts
+-- Contatos importados (Apify) ou adicionados manualmente
+-- niche = 'manual' para números adicionados na mão
 -- ============================================================
 
-create table leads (
-  id           uuid primary key default uuid_generate_v4(),
-  campaign_id  uuid not null references campaigns(id) on delete cascade,
-
+create table contacts (
+  id           uuid primary key default gen_random_uuid(),
+  phone        text not null,
   name         text,
-  phone        text not null,           -- Normalizado: 5511999999999
-  city         text,
-  source       lead_source not null default 'manual_upload',
-
-  -- Dados extras vindos do Apify (website, category, etc.)
-  extra        jsonb default '{}',
-
-  -- Controle
-  is_valid     boolean,                 -- null = não verificado, true/false após checkNumber
+  niche        text not null,
+  sent_count   integer not null default 0,
+  last_sent_at timestamptz,
   created_at   timestamptz not null default now(),
 
-  unique (campaign_id, phone)          -- Sem duplicatas dentro da mesma campanha
+  unique (phone, niche)
 );
 
 -- ============================================================
 -- TABELA: dispatches
--- Log detalhado de cada tentativa de envio
+-- Um registro por número por campanha — rastreia cada envio
 -- ============================================================
 
 create table dispatches (
-  id            uuid primary key default uuid_generate_v4(),
-  lead_id       uuid not null references leads(id) on delete cascade,
+  id            uuid primary key default gen_random_uuid(),
   campaign_id   uuid not null references campaigns(id) on delete cascade,
-  template_id   uuid references templates(id) on delete set null,
-
-  status        dispatch_status not null default 'pending',
-  message_sent  text,                   -- Versão final da mensagem após spin
-  error_message text,                   -- Mensagem de erro se status = failed
-  error_code    text,                   -- Código do erro (ex: invalid_number, rate_limit)
-
-  retry_count   integer not null default 0,
+  phone         text not null,        -- número normalizado: 5511999999999
+  status        text not null default 'pending', -- pending | sent | failed | cancelled
+  message_sent  text,                 -- mensagem gerada pelo spin (preenchida no shuffle ou no envio)
+  typing_delay  integer,              -- delay de digitação em ms
   sent_at       timestamptz,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  error         text,
+  created_at    timestamptz not null default now()
 );
 
--- ============================================================
--- ÍNDICES
--- ============================================================
-
--- Dispatches por campanha (consultas frequentes no dashboard)
-create index idx_dispatches_campaign_id  on dispatches(campaign_id);
-create index idx_dispatches_status       on dispatches(status);
-create index idx_dispatches_sent_at      on dispatches(sent_at desc);
-
--- Leads por campanha
-create index idx_leads_campaign_id on leads(campaign_id);
-create index idx_leads_phone       on leads(phone);
-
--- Campanhas por status
-create index idx_campaigns_status on campaigns(status);
+create index dispatches_campaign_status on dispatches(campaign_id, status);
 
 -- ============================================================
--- TRIGGERS: updated_at automático
+-- FUNÇÕES RPC
+-- Incremento atômico dos contadores da campanha
 -- ============================================================
 
-create or replace function update_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
+create or replace function increment_campaign_sent(p_campaign_id uuid)
+returns void language sql as $$
+  update campaigns
+  set sent_count = sent_count + 1
+  where id = p_campaign_id;
+$$;
 
-create trigger trg_campaigns_updated_at
-  before update on campaigns
-  for each row execute function update_updated_at();
-
-create trigger trg_templates_updated_at
-  before update on templates
-  for each row execute function update_updated_at();
-
-create trigger trg_wa_instances_updated_at
-  before update on wa_instances
-  for each row execute function update_updated_at();
-
-create trigger trg_dispatches_updated_at
-  before update on dispatches
-  for each row execute function update_updated_at();
+create or replace function increment_campaign_failed(p_campaign_id uuid)
+returns void language sql as $$
+  update campaigns
+  set failed_count = failed_count + 1
+  where id = p_campaign_id;
+$$;
 
 -- ============================================================
--- TRIGGER: atualizar métricas da campanha após insert/update em dispatches
+-- RLS (desabilitado — acesso via service_role no backend)
 -- ============================================================
 
-create or replace function sync_campaign_metrics()
-returns trigger as $$
-begin
-  update campaigns set
-    sent_count    = (select count(*) from dispatches where campaign_id = coalesce(new.campaign_id, old.campaign_id) and status = 'sent'),
-    failed_count  = (select count(*) from dispatches where campaign_id = coalesce(new.campaign_id, old.campaign_id) and status = 'failed'),
-    pending_count = (select count(*) from dispatches where campaign_id = coalesce(new.campaign_id, old.campaign_id) and status = 'pending'),
-    updated_at    = now()
-  where id = coalesce(new.campaign_id, old.campaign_id);
-  return coalesce(new, old);
-end;
-$$ language plpgsql;
-
-create trigger trg_sync_campaign_metrics
-  after insert or update or delete on dispatches
-  for each row execute function sync_campaign_metrics();
-
--- ============================================================
--- TRIGGER: atualizar total_leads ao inserir lead
--- ============================================================
-
-create or replace function sync_campaign_lead_count()
-returns trigger as $$
-begin
-  if TG_OP = 'INSERT' then
-    update campaigns set total_leads = total_leads + 1 where id = new.campaign_id;
-  elsif TG_OP = 'DELETE' then
-    update campaigns set total_leads = greatest(total_leads - 1, 0) where id = old.campaign_id;
-  end if;
-  return coalesce(new, old);
-end;
-$$ language plpgsql;
-
-create trigger trg_sync_campaign_lead_count
-  after insert or delete on leads
-  for each row execute function sync_campaign_lead_count();
-
--- ============================================================
--- ROW LEVEL SECURITY (RLS)
--- Habilitar RLS nas tabelas acessadas pelo frontend (anon key)
--- O backend usa service_role e bypassa o RLS
--- ============================================================
-
-alter table campaigns    enable row level security;
-alter table templates    enable row level security;
-alter table leads        enable row level security;
-alter table dispatches   enable row level security;
-alter table wa_instances enable row level security;
-
--- Policies: acesso total para usuários autenticados
--- (Ajustar conforme necessário se adicionar autenticação de usuários)
-
-create policy "Allow all for authenticated" on campaigns
-  for all using (true);
-
-create policy "Allow all for authenticated" on templates
-  for all using (true);
-
-create policy "Allow all for authenticated" on leads
-  for all using (true);
-
-create policy "Allow all for authenticated" on dispatches
-  for all using (true);
-
-create policy "Allow all for authenticated" on wa_instances
-  for all using (true);
-
--- ============================================================
--- REALTIME: habilitar publicação em tempo real
--- ============================================================
-
-begin;
-  drop publication if exists supabase_realtime;
-  create publication supabase_realtime for table dispatches, campaigns, wa_instances;
-commit;
-
--- ============================================================
--- DADOS DE EXEMPLO (opcional — remover em produção)
--- ============================================================
-
--- Template de exemplo para clínicas
-insert into templates (name, content, description) values (
-  'Prospecção Clínicas v1',
-  'Olá {Dr.|Dra.|}, tudo bem? Vi que {sua clínica|seu consultório|seu espaço} aparece no Google Maps.
-
-Trabalho com {automação de agendamentos|gestão de agenda automatizada|agendamento inteligente} para clínicas de {estética|odontologia|saúde} e queria entender se faz sentido para você.
-
-Posso te mostrar como funciona em {5 minutos|uma conversa rápida|menos de 10 minutos}?',
-  'Template para prospecção fria de clínicas'
-);
-
--- ============================================================
--- VERIFICAÇÃO FINAL
--- Execute para confirmar que tudo foi criado corretamente:
--- ============================================================
-
--- select table_name from information_schema.tables where table_schema = 'public' order by table_name;
--- Deve retornar: campaigns, dispatches, leads, templates, wa_instances
+alter table wa_instances disable row level security;
+alter table templates    disable row level security;
+alter table campaigns    disable row level security;
+alter table contacts     disable row level security;
+alter table dispatches   disable row level security;

@@ -41,6 +41,12 @@ router.post('/', async (req, res) => {
       if (phoneList.length === 0) {
         return res.status(400).json({ error: 'Adicione pelo menos um número válido' });
       }
+      // Salva os números na tabela contacts (nicho 'manual') para persistir no banco
+      const contactRecords = phoneList.map(phone => ({ phone, name: null, niche: 'manual', sent_count: 0 }));
+      const { error: contactErr } = await supabase
+        .from('contacts')
+        .upsert(contactRecords, { onConflict: 'phone,niche', ignoreDuplicates: true });
+      if (contactErr) throw new Error(contactErr.message);
     } else {
       return res.status(400).json({ error: 'Forneça niche+quantity ou phones' });
     }
@@ -95,6 +101,102 @@ router.put('/:id', async (req, res) => {
 
     if (error) throw new Error(error.message);
     res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/campaigns/:id — remove campanha e todos os dispatches
+router.delete('/:id', async (req, res) => {
+  try {
+    const { data: current } = await supabase.from('campaigns').select('status').eq('id', req.params.id).single();
+    if (current?.status === 'running') {
+      return res.status(400).json({ error: 'Pause ou encerre a campanha antes de excluir' });
+    }
+    const { error } = await supabase.from('campaigns').delete().eq('id', req.params.id);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/campaigns/:id/contacts — adiciona contatos a uma campanha existente
+router.post('/:id/contacts', async (req, res) => {
+  try {
+    const { phones, niche, quantity } = req.body;
+
+    const { data: campaign, error: campErr } = await supabase
+      .from('campaigns')
+      .select('id, status, total_leads')
+      .eq('id', req.params.id)
+      .single();
+
+    if (campErr || !campaign) return res.status(404).json({ error: 'Campanha não encontrada' });
+    if (campaign.status === 'cancelled' || campaign.status === 'completed') {
+      return res.status(400).json({ error: 'Não é possível adicionar contatos a uma campanha encerrada ou concluída' });
+    }
+
+    let phoneList = [];
+
+    if (niche && quantity) {
+      // Busca contatos do nicho não enviados e que ainda não estão nessa campanha
+      const { data: existing } = await supabase
+        .from('dispatches')
+        .select('phone')
+        .eq('campaign_id', req.params.id);
+      const existingPhones = new Set((existing || []).map(d => d.phone));
+
+      const { data: contacts, error: cErr } = await supabase
+        .from('contacts')
+        .select('phone')
+        .eq('niche', niche)
+        .eq('sent_count', 0)
+        .order('created_at')
+        .limit(Number(quantity) + existingPhones.size);
+
+      if (cErr) throw new Error(cErr.message);
+      phoneList = (contacts || []).map(c => c.phone).filter(p => !existingPhones.has(p)).slice(0, Number(quantity));
+      if (phoneList.length === 0) {
+        return res.status(400).json({ error: `Nenhum contato novo disponível no nicho "${niche}"` });
+      }
+    } else if (phones) {
+      const parsed = phones.split('\n').map(p => p.trim().replace(/\D/g, '')).filter(p => p.length >= 10);
+      if (parsed.length === 0) return res.status(400).json({ error: 'Adicione pelo menos um número válido' });
+
+      // Ignora duplicatas já na campanha
+      const { data: existing } = await supabase
+        .from('dispatches')
+        .select('phone')
+        .eq('campaign_id', req.params.id);
+      const existingPhones = new Set((existing || []).map(d => d.phone));
+      phoneList = parsed.filter(p => !existingPhones.has(p));
+      if (phoneList.length === 0) return res.status(400).json({ error: 'Todos os números informados já estão na campanha' });
+
+      // Salva no banco de contatos (nicho manual)
+      const contactRecords = phoneList.map(phone => ({ phone, name: null, niche: 'manual', sent_count: 0 }));
+      const { error: contactErr } = await supabase
+        .from('contacts')
+        .upsert(contactRecords, { onConflict: 'phone,niche', ignoreDuplicates: true });
+      if (contactErr) throw new Error(contactErr.message);
+    } else {
+      return res.status(400).json({ error: 'Forneça phones ou niche+quantity' });
+    }
+
+    // Insere novos dispatches
+    const { error: dispErr } = await supabase.from('dispatches').insert(
+      phoneList.map(phone => ({ campaign_id: req.params.id, phone, status: 'pending' }))
+    );
+    if (dispErr) throw new Error(dispErr.message);
+
+    // Atualiza total_leads
+    const { error: updErr } = await supabase
+      .from('campaigns')
+      .update({ total_leads: campaign.total_leads + phoneList.length })
+      .eq('id', req.params.id);
+    if (updErr) throw new Error(updErr.message);
+
+    res.json({ ok: true, added: phoneList.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -189,24 +291,20 @@ router.post('/:id/shuffle', async (req, res) => {
     }
 
     // Gera mensagem única e delay individual para cada contato
-    const updates = dispatches.map(d => ({
-      id: d.id,
-      message_sent: spin(template.content),
-      typing_delay: getTypingDelay(),
-    }));
-
-    // Atualiza em lotes de 50
-    const batchSize = 50;
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
+    // Usa update (não upsert) para evitar tentativa de INSERT que viola NOT NULL em campaign_id
+    for (const d of dispatches) {
       const { error: upErr } = await supabase
         .from('dispatches')
-        .upsert(batch, { onConflict: 'id' });
+        .update({
+          message_sent: spin(template.content),
+          typing_delay: getTypingDelay(),
+        })
+        .eq('id', d.id);
       if (upErr) throw new Error(upErr.message);
     }
 
-    console.log(`[shuffle] ${updates.length} mensagens geradas para campanha ${req.params.id}`);
-    res.json({ ok: true, count: updates.length });
+    console.log(`[shuffle] ${dispatches.length} mensagens geradas para campanha ${req.params.id}`);
+    res.json({ ok: true, count: dispatches.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

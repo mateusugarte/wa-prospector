@@ -1,11 +1,11 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Campaigns from './pages/Campaigns';
-import Contacts from './pages/Contacts';
-import Templates from './pages/Templates';
-import Settings from './pages/Settings';
+import Dashboard from './pages/Dashboard/index';
+import Campaigns from './pages/Campaigns/index';
+import Contacts from './pages/Contacts/index';
+import Templates from './pages/Templates/index';
+import Settings from './pages/Settings/index';
 
 export default function App() {
   return (
