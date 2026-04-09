@@ -134,7 +134,7 @@ async function _execute(campaignId, runner, io) {
           .update({ sent_count: contact.sent_count + 1, last_sent_at: new Date().toISOString() })
           .eq('id', contact.id);
       }
-      io?.emit('dispatch:sent', { campaignId, phone: dispatch.phone });
+      io?.emit('dispatch:sent', { campaignId, dispatchId: dispatch.id, phone: dispatch.phone, message });
       console.log(`[campaign] ✓ enviado para ${dispatch.phone} (delay: ${typingDelay}ms)`);
     } catch (err) {
       await supabase.from('dispatches').update({
@@ -142,24 +142,30 @@ async function _execute(campaignId, runner, io) {
         error: err.message,
       }).eq('id', dispatch.id);
       await supabase.rpc('increment_campaign_failed', { p_campaign_id: campaignId });
-      io?.emit('dispatch:failed', { campaignId, phone: dispatch.phone, error: err.message });
+      io?.emit('dispatch:failed', { campaignId, dispatchId: dispatch.id, phone: dispatch.phone, error: err.message });
       console.log(`[campaign] ✗ falha para ${dispatch.phone}: ${err.message}`);
     }
 
     if (runner.stopped) break;
 
-    // Delay aleatório entre envios
+    // Delay aleatório entre envios — emite countdown a cada segundo
     const delay = getRandomDelay(campaign.interval_min, campaign.interval_max);
+    const totalSecs = Math.round(delay / 1000);
     console.log(`[campaign] aguardando ${formatDelay(delay)}...`);
 
-    const start = Date.now();
-    while (Date.now() - start < delay && !runner.stopped) {
-      // Verifica pause durante o delay
+    for (let i = 0; i < totalSecs && !runner.stopped; i++) {
+      // Pausa durante countdown
       while (runner.paused && !runner.stopped) {
+        io?.emit('campaign:countdown', { campaignId, remaining: 0, total: totalSecs, paused: true });
         await sleep(500);
       }
-      await sleep(300);
+      if (runner.stopped) break;
+      const remaining = totalSecs - i;
+      io?.emit('campaign:countdown', { campaignId, remaining, total: totalSecs, paused: false });
+      await sleep(1000);
     }
+    // Zera countdown antes do próximo envio
+    io?.emit('campaign:countdown', { campaignId, remaining: 0, total: totalSecs, paused: false });
   }
 }
 
