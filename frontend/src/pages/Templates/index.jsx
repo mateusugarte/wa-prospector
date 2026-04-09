@@ -2,10 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import TemplateModal from './TemplateModal';
 
+function IconPlus() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+}
+function IconEdit() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconEmpty() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+}
+
 export default function Templates() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null); // null | 'new' | template object
+  const [modal, setModal] = useState(null);
 
   async function load() {
     const { data } = await supabase
@@ -18,16 +28,8 @@ export default function Templates() {
 
   useEffect(() => { load(); }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-gray-500">Carregando...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-8">
+    <div className="animate-fade-in" style={{ padding: 32 }}>
       {modal !== null && (
         <TemplateModal
           template={modal === 'new' ? null : modal}
@@ -36,41 +38,67 @@ export default function Templates() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Templates</h2>
-        <button
-          onClick={() => setModal('new')}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Novo template
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Templates</h2>
+          {!loading && templates.length > 0 && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginTop: 4 }}>{templates.length} template{templates.length !== 1 ? 's' : ''}</p>
+          )}
+        </div>
+        <button className="btn btn-primary" onClick={() => setModal('new')}>
+          <IconPlus /> Novo template
         </button>
       </div>
 
-      {templates.length === 0 ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-          <p className="text-gray-500 mb-2">Nenhum template criado ainda.</p>
-          <p className="text-gray-600 text-sm">Templates suportam spin com sintaxe {'{opção1|opção2|opção3}'}.</p>
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="card" style={{ padding: 20 }}>
+              <div className="shimmer" style={{ height: 14, width: 160, marginBottom: 8 }} />
+              <div className="shimmer" style={{ height: 11, width: 240, marginBottom: 16 }} />
+              <div className="shimmer" style={{ height: 72, width: '100%' }} />
+            </div>
+          ))}
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="card-lg">
+          <div className="empty-state">
+            <div className="empty-icon"><IconEmpty /></div>
+            <p style={{ color: 'var(--text-2)', fontWeight: 500 }}>Nenhum template criado</p>
+            <p style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>
+              Templates suportam spin com sintaxe <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>{'{opção1|opção2}'}</code>
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {templates.map(t => (
-            <div key={t.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <div className="flex items-start justify-between mb-2">
+            <div key={t.id} className="card card-hover animate-slide-up" style={{ padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                  <h3 className="font-semibold text-white">{t.name}</h3>
-                  {t.description && <p className="text-sm text-gray-500 mt-0.5">{t.description}</p>}
+                  <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.9375rem', marginBottom: 2 }}>{t.name}</p>
+                  {t.description && <p style={{ fontSize: '0.8125rem', color: 'var(--text-3)' }}>{t.description}</p>}
                 </div>
-                <button
-                  onClick={() => setModal(t)}
-                  className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
-                >
-                  Editar
+                <button className="btn btn-secondary btn-sm" onClick={() => setModal(t)}>
+                  <IconEdit /> Editar
                 </button>
               </div>
-              <pre className="text-sm text-gray-400 whitespace-pre-wrap font-sans bg-gray-800 rounded-lg p-3 mt-3">
+              <div style={{
+                background: 'var(--surface-2)',
+                borderRadius: 8,
+                padding: '12px 14px',
+                fontFamily: 'monospace',
+                fontSize: '0.8125rem',
+                color: 'var(--text-2)',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.6,
+                maxHeight: 120,
+                overflow: 'auto',
+                border: '1px solid var(--border)',
+              }}>
                 {t.content}
-              </pre>
-              <p className="text-xs text-gray-600 mt-2">
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 8 }}>
                 Criado em {new Date(t.created_at).toLocaleDateString('pt-BR')}
               </p>
             </div>

@@ -1,22 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import CampaignModal from './CampaignModal';
-import CampaignDetail from './CampaignDetail';
 
-const STATUS_LABELS = {
-  draft:     { label: 'Rascunho',  color: 'bg-gray-700 text-gray-300' },
-  running:   { label: 'Rodando',   color: 'bg-green-900 text-green-300' },
-  paused:    { label: 'Pausada',   color: 'bg-yellow-900 text-yellow-300' },
-  completed: { label: 'Concluída', color: 'bg-blue-900 text-blue-300' },
-  cancelled: { label: 'Encerrada', color: 'bg-red-900 text-red-300' },
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+const STATUS_CFG = {
+  draft:     { label: 'Rascunho',  bg: 'var(--surface-3)',     color: 'var(--text-3)' },
+  running:   { label: 'Rodando',   bg: 'var(--accent-dim)',     color: 'var(--accent)' },
+  paused:    { label: 'Pausada',   bg: 'rgba(245,158,11,0.12)', color: 'var(--warning)' },
+  completed: { label: 'Concluída', bg: 'rgba(59,130,246,0.12)', color: 'var(--info)' },
+  cancelled: { label: 'Encerrada', bg: 'rgba(239,68,68,0.12)',  color: 'var(--danger)' },
 };
 
+function IconPlus() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+}
+function IconTrash() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d2="M14 11v6"/><path d="M9 6V4h6v2"/></svg>;
+}
+function IconEdit() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconChevronRight() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>;
+}
+function IconEmpty() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>;
+}
+
 export default function Campaigns() {
+  const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
-  const [detailCampaign, setDetailCampaign] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
   async function load() {
@@ -30,15 +48,16 @@ export default function Campaigns() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
   }, []);
 
-  async function handleDelete(campaign) {
-    if (!confirm(`Excluir a campanha "${campaign.name}"? Todos os disparos serão removidos.`)) return;
+  async function handleDelete(e, campaign) {
+    e.stopPropagation();
+    if (!confirm(`Excluir "${campaign.name}"? Todos os disparos serão removidos.`)) return;
     setDeleting(campaign.id);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/campaigns/${campaign.id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/api/campaigns/${campaign.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       await load();
@@ -49,136 +68,147 @@ export default function Campaigns() {
     }
   }
 
-  async function handleDetailAction() {
-    await load();
-    if (detailCampaign) {
-      const { data } = await supabase
-        .from('campaigns')
-        .select('id, name, status, total_leads, sent_count, failed_count, interval_min, interval_max, template_id, instance_id')
-        .eq('id', detailCampaign.id)
-        .single();
-      if (data) setDetailCampaign(data);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-gray-500">Carregando...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-8">
-      {showModal && (
-        <CampaignModal
-          onClose={() => setShowModal(false)}
-          onSaved={() => { setShowModal(false); load(); }}
-        />
-      )}
-      {editCampaign && (
+    <div className="animate-fade-in" style={{ padding: 32 }}>
+      {(showModal || editCampaign) && (
         <CampaignModal
           existing={editCampaign}
-          onClose={() => setEditCampaign(null)}
-          onSaved={() => { setEditCampaign(null); load(); }}
-        />
-      )}
-      {detailCampaign && (
-        <CampaignDetail
-          campaign={detailCampaign}
-          onClose={() => setDetailCampaign(null)}
-          onAction={handleDetailAction}
+          onClose={() => { setShowModal(false); setEditCampaign(null); }}
+          onSaved={() => { setShowModal(false); setEditCampaign(null); load(); }}
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Campanhas</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Nova campanha
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Campanhas</h2>
+          {!loading && campaigns.length > 0 && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginTop: 4 }}>
+              {campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''} ·{' '}
+              {campaigns.filter(c => c.status === 'running').length} rodando
+            </p>
+          )}
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+          <IconPlus /> Nova campanha
         </button>
       </div>
 
-      {campaigns.length === 0 ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-          <p className="text-gray-500 mb-2">Nenhuma campanha criada ainda.</p>
-          <p className="text-gray-600 text-sm">Clique em "Nova campanha" para começar.</p>
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="card" style={{ height: 72 }}>
+              <div style={{ padding: '18px 20px', display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div className="shimmer" style={{ height: 12, width: 180 }} />
+                <div className="shimmer" style={{ height: 20, width: 72, borderRadius: 99 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : campaigns.length === 0 ? (
+        <div className="card-lg">
+          <div className="empty-state">
+            <div className="empty-icon"><IconEmpty /></div>
+            <p style={{ color: 'var(--text-2)', fontWeight: 500 }}>Nenhuma campanha criada</p>
+            <p style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>Clique em "Nova campanha" para começar</p>
+          </div>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800 text-gray-500">
-                <th className="text-left px-5 py-3 font-medium">Nome</th>
-                <th className="text-left px-5 py-3 font-medium">Status</th>
-                <th className="text-right px-5 py-3 font-medium">Leads</th>
-                <th className="text-right px-5 py-3 font-medium">Enviados</th>
-                <th className="text-right px-5 py-3 font-medium">Falhas</th>
-                <th className="text-right px-5 py-3 font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.map(c => {
-                const s = STATUS_LABELS[c.status] ?? STATUS_LABELS.draft;
-                const progress = c.total_leads > 0
-                  ? Math.round(((c.sent_count + c.failed_count) / c.total_leads) * 100)
-                  : 0;
-                return (
-                  <tr key={c.id} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50">
-                    <td className="px-5 py-3">
-                      <button
-                        onClick={() => setDetailCampaign(c)}
-                        className="font-medium text-white hover:text-green-400 transition-colors text-left"
-                      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {campaigns.map(c => {
+            const s = STATUS_CFG[c.status] ?? STATUS_CFG.draft;
+            const progress = c.total_leads > 0
+              ? Math.round(((c.sent_count + c.failed_count) / c.total_leads) * 100)
+              : 0;
+            const isRunning = c.status === 'running';
+            const canEdit = c.status === 'draft' || c.status === 'paused';
+
+            return (
+              <div
+                key={c.id}
+                className="card card-hover"
+                onClick={() => navigate(`/campaigns/${c.id}`)}
+                style={{ cursor: 'pointer', padding: '16px 20px', transition: 'all 0.2s ease' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {/* Status dot */}
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: s.color, flexShrink: 0,
+                    boxShadow: isRunning ? `0 0 8px ${s.color}` : 'none',
+                    animation: isRunning ? 'pulseSoft 2s ease-in-out infinite' : 'none',
+                  }} />
+
+                  {/* Name + progress */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: isRunning ? 6 : 0 }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.9375rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {c.name}
-                      </button>
-                      {c.status === 'running' && (
-                        <div className="w-32 bg-gray-700 rounded-full h-1 mt-1">
-                          <div className="bg-green-500 h-1 rounded-full transition-all" style={{ width: `${progress}%` }} />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.color}`}>{s.label}</span>
-                    </td>
-                    <td className="px-5 py-3 text-right text-gray-400">{c.total_leads ?? 0}</td>
-                    <td className="px-5 py-3 text-right text-green-400">{c.sent_count ?? 0}</td>
-                    <td className="px-5 py-3 text-right text-red-400">{c.failed_count ?? 0}</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {(c.status === 'draft' || c.status === 'paused') && (
-                          <button
-                            onClick={() => setEditCampaign(c)}
-                            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-2.5 py-1.5 rounded-lg transition-colors"
-                          >
-                            Editar
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setDetailCampaign(c)}
-                          className="text-xs text-green-400 hover:text-green-300 border border-green-800 hover:border-green-600 px-2.5 py-1.5 rounded-lg transition-colors"
-                        >
-                          Abrir
-                        </button>
-                        {c.status !== 'running' && (
-                          <button
-                            onClick={() => handleDelete(c)}
-                            disabled={deleting === c.id}
-                            className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-50 px-2 py-1 transition-colors"
-                          >
-                            {deleting === c.id ? '...' : 'Excluir'}
-                          </button>
-                        )}
+                      </span>
+                      <span style={{
+                        padding: '1px 8px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 500,
+                        background: s.bg, color: s.color, flexShrink: 0,
+                      }}>
+                        {s.label}
+                      </span>
+                    </div>
+                    {isRunning && (
+                      <div className="progress-bar">
+                        <div className="progress-fill" style={{ width: `${progress}%`, background: 'var(--accent)' }} />
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 2 }}>Contatos</p>
+                      <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>{c.total_leads ?? 0}</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 2 }}>Enviados</p>
+                      <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent)' }}>{c.sent_count ?? 0}</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 2 }}>Falhas</p>
+                      <p style={{ fontSize: '0.9rem', fontWeight: 600, color: c.failed_count > 0 ? 'var(--danger)' : 'var(--text-3)' }}>{c.failed_count ?? 0}</p>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8 }} onClick={e => e.stopPropagation()}>
+                      {canEdit && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={e => { e.stopPropagation(); setEditCampaign(c); }}
+                          title="Editar"
+                        >
+                          <IconEdit />
+                        </button>
+                      )}
+                      {c.status !== 'running' && (
+                        <button
+                          className="btn btn-sm"
+                          onClick={e => handleDelete(e, c)}
+                          disabled={deleting === c.id}
+                          style={{ background: 'transparent', color: 'var(--text-3)', border: '1px solid transparent' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'transparent'; }}
+                          title="Excluir"
+                        >
+                          {deleting === c.id ? '...' : <IconTrash />}
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ color: 'var(--text-3)', marginLeft: 4 }}>
+                      <IconChevronRight />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -3,9 +3,12 @@ import { supabase } from '../../lib/supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function IconX() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+}
+
 export default function CampaignModal({ existing, onClose, onSaved }) {
   const isEdit = !!existing;
-
   const [mode, setMode] = useState('phones');
   const [name, setName] = useState(existing?.name || '');
   const [templateId, setTemplateId] = useState(existing?.template_id || '');
@@ -51,105 +54,63 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
     setPhoneInput('');
   }
 
-  function removePhone(phone) {
-    setPhoneList(prev => prev.filter(p => p !== phone));
-  }
-
   async function handleSave() {
-    if (!name || !instanceId || !intervalOption) {
-      setError('Preencha nome, instância e intervalo.');
-      return;
-    }
+    if (!name || !instanceId || !intervalOption) { setError('Preencha nome, instância e intervalo.'); return; }
     if (!isEdit) {
-      if (mode === 'phones' && phoneList.length === 0) { setError('Adicione ao menos um número válido.'); return; }
-      if (mode === 'niche'  && !niche)                 { setError('Selecione um nicho.'); return; }
+      if (mode === 'phones' && phoneList.length === 0) { setError('Adicione ao menos um número.'); return; }
+      if (mode === 'niche' && !niche) { setError('Selecione um nicho.'); return; }
     }
-    setSaving(true);
-    setError(null);
+    setSaving(true); setError(null);
     try {
       if (isEdit) {
         const res = await fetch(`${API_URL}/api/campaigns/${existing.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name,
-            template_id: templateId || null,
-            instance_id: instanceId,
-            interval_min: selectedInterval.min,
-            interval_max: selectedInterval.max,
-          }),
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, template_id: templateId || null, instance_id: instanceId, interval_min: selectedInterval.min, interval_max: selectedInterval.max }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
       } else {
-        const body = {
-          name,
-          template_id: templateId || null,
-          instance_id: instanceId,
-          interval_min: selectedInterval.min,
-          interval_max: selectedInterval.max,
-        };
+        const body = { name, template_id: templateId || null, instance_id: instanceId, interval_min: selectedInterval.min, interval_max: selectedInterval.max };
         if (mode === 'phones') body.phones = phoneList.join('\n');
         else { body.niche = niche; body.quantity = Number(quantity); }
-
-        const res = await fetch(`${API_URL}/api/campaigns`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+        const res = await fetch(`${API_URL}/api/campaigns`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
       }
       onSaved();
-    } catch (err) {
-      setError(err.message);
-      setSaving(false);
-    }
+    } catch (err) { setError(err.message); setSaving(false); }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-xl shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h3 className="font-semibold text-white">{isEdit ? 'Editar campanha' : 'Nova campanha'}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white text-lg leading-none">✕</button>
+    <div className="modal-overlay">
+      <div className="modal-box" style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.9375rem' }}>
+            {isEdit ? 'Editar campanha' : 'Nova campanha'}
+          </p>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 6 }}><IconX /></button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Nome */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Nome *</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ex: Prospecção Abril 2026"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-            />
+            <label className="label">Nome *</label>
+            <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Prospecção Abril 2026" />
           </div>
 
           {/* Instância + Template */}
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Instância WhatsApp *</label>
-              <select
-                value={instanceId}
-                onChange={e => setInstanceId(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-              >
+              <label className="label">Instância WA *</label>
+              <select className="select" value={instanceId} onChange={e => setInstanceId(e.target.value)}>
                 <option value="">Selecionar</option>
                 {instances.map(i => <option key={i.instance_id} value={i.instance_id}>{i.name}</option>)}
               </select>
-              {instances.length === 0 && (
-                <p className="text-xs text-yellow-500 mt-1">Nenhuma instância conectada</p>
-              )}
+              {instances.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--warning)', marginTop: 4 }}>Nenhuma instância conectada</p>}
             </div>
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Template de mensagem</label>
-              <select
-                value={templateId}
-                onChange={e => setTemplateId(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-              >
+              <label className="label">Template</label>
+              <select className="select" value={templateId} onChange={e => setTemplateId(e.target.value)}>
                 <option value="">Selecionar depois</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -158,17 +119,19 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
 
           {/* Intervalo */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Intervalo entre mensagens *</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="label">Intervalo entre mensagens *</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {intervals.map(opt => (
                 <button
                   key={opt.label}
                   onClick={() => setIntervalOption(opt.label)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                    intervalOption === opt.label
-                      ? 'bg-green-600 border-green-500 text-white'
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
-                  }`}
+                  style={{
+                    padding: '8px 10px', borderRadius: 8, fontSize: '0.8125rem', fontWeight: 500,
+                    border: `1px solid ${intervalOption === opt.label ? 'var(--accent)' : 'var(--border)'}`,
+                    background: intervalOption === opt.label ? 'var(--accent-dim)' : 'var(--surface-2)',
+                    color: intervalOption === opt.label ? 'var(--accent)' : 'var(--text-2)',
+                    cursor: 'pointer', transition: 'all 0.15s ease',
+                  }}
                 >
                   {opt.label}
                 </button>
@@ -176,123 +139,78 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Modo de leads (somente criação) */}
+          {/* Leads (somente criação) */}
           {!isEdit && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <label className="text-sm text-gray-400">Modo de leads</label>
-                <div className="flex rounded-lg overflow-hidden border border-gray-700 ml-auto">
-                  <button
-                    onClick={() => setMode('phones')}
-                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'phones' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                  >
-                    Manual
-                  </button>
-                  <button
-                    onClick={() => setMode('niche')}
-                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${mode === 'niche' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                  >
-                    Por nicho
-                  </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <label className="label" style={{ margin: 0 }}>Leads</label>
+                <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  {['phones', 'niche'].map(m => (
+                    <button key={m} onClick={() => setMode(m)} style={{
+                      padding: '5px 12px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', border: 'none',
+                      background: mode === m ? 'var(--accent)' : 'var(--surface-2)',
+                      color: mode === m ? '#fff' : 'var(--text-2)',
+                      transition: 'all 0.15s ease',
+                    }}>
+                      {m === 'phones' ? 'Manual' : 'Por nicho'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {mode === 'phones' ? (
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">
-                    Número *
-                    {phoneList.length > 0 && (
-                      <span className="ml-2 text-green-400">{phoneList.length} adicionado{phoneList.length !== 1 ? 's' : ''}</span>
-                    )}
-                  </label>
-                  <div className="flex gap-2">
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <input
+                      className="input"
                       value={phoneInput}
                       onChange={e => setPhoneInput(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addPhone())}
                       placeholder="5511999999999"
-                      className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-green-500"
+                      style={{ fontFamily: 'monospace' }}
                     />
-                    <button
-                      type="button"
-                      onClick={addPhone}
-                      className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-3 py-2 rounded-lg transition-colors"
-                    >
-                      + Adicionar
-                    </button>
+                    <button onClick={addPhone} className="btn btn-secondary" style={{ flexShrink: 0 }}>Adicionar</button>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">Com código do país (55 Brasil) · Enter para adicionar</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>
+                    Com código do país (55) · Enter para adicionar
+                    {phoneList.length > 0 && <span style={{ color: 'var(--accent)', marginLeft: 8 }}>{phoneList.length} número{phoneList.length !== 1 ? 's' : ''}</span>}
+                  </p>
                   {phoneList.length > 0 && (
-                    <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+                    <div style={{ marginTop: 8, maxHeight: 120, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {phoneList.map(p => (
-                        <div key={p} className="flex items-center justify-between bg-gray-800 rounded px-3 py-1.5">
-                          <span className="font-mono text-xs text-gray-300">{p}</span>
-                          <button
-                            type="button"
-                            onClick={() => removePhone(p)}
-                            className="text-gray-600 hover:text-red-400 text-xs transition-colors"
-                          >
-                            ✕
-                          </button>
+                        <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-2)', borderRadius: 6, padding: '5px 10px' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '0.8125rem', color: 'var(--text-2)' }}>{p}</span>
+                          <button onClick={() => setPhoneList(prev => prev.filter(x => x !== p))} style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '0.85rem' }}>✕</button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label className="text-sm text-gray-400 mb-1 block">Nicho *</label>
-                    <select
-                      value={niche}
-                      onChange={e => setNiche(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-                    >
+                    <label className="label">Nicho *</label>
+                    <select className="select" value={niche} onChange={e => setNiche(e.target.value)}>
                       <option value="">Selecionar nicho</option>
-                      {niches.map(n => (
-                        <option key={n.niche} value={n.niche}>{n.niche} ({n.available} disponíveis)</option>
-                      ))}
+                      {niches.map(n => <option key={n.niche} value={n.niche}>{n.niche} ({n.available})</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-400 mb-1 block">
-                      Quantidade *
-                      {selectedNiche && <span className="ml-2 text-gray-500">máx. {selectedNiche.available}</span>}
-                    </label>
-                    <input
-                      type="number"
-                      value={quantity}
-                      onChange={e => setQuantity(e.target.value)}
-                      min={1}
-                      max={selectedNiche?.available || 9999}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-                    />
+                    <label className="label">Quantidade * {selectedNiche && <span style={{ color: 'var(--text-3)' }}>máx. {selectedNiche.available}</span>}</label>
+                    <input className="input" type="number" value={quantity} onChange={e => setQuantity(e.target.value)} min={1} max={selectedNiche?.available || 9999} />
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p style={{ fontSize: '0.875rem', color: 'var(--danger)' }}>{error}</p>}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
-          <button onClick={onClose} className="text-sm text-gray-400 hover:text-white px-4 py-2 transition-colors">
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
-          >
-            {saving
-              ? (isEdit ? 'Salvando...' : 'Criando...')
-              : isEdit
-                ? 'Salvar alterações'
-                : mode === 'niche'
-                  ? `Criar (${quantity} leads)`
-                  : `Criar${phoneList.length > 0 ? ` (${phoneList.length} leads)` : ''}`
-            }
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
+          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+            {saving ? (isEdit ? 'Salvando...' : 'Criando...') : isEdit ? 'Salvar' : mode === 'niche' ? `Criar (${quantity} leads)` : `Criar${phoneList.length > 0 ? ` (${phoneList.length})` : ''}`}
           </button>
         </div>
       </div>

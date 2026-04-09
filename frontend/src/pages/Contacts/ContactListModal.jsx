@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function IconX() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+}
+
 export default function ContactListModal({ niche, onClose }) {
   const [contacts, setContacts] = useState([]);
   const [total, setTotal] = useState(0);
@@ -27,43 +31,55 @@ export default function ContactListModal({ niche, onClose }) {
   const totalPages = Math.ceil(total / 50);
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
-          <h3 className="font-semibold text-white">
-            Contatos — {niche}
-            <span className="text-gray-500 font-normal text-sm ml-2">{total} total</span>
-          </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white text-lg leading-none">✕</button>
+    <div className="modal-overlay">
+      <div className="modal-box" style={{ maxWidth: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="modal-header" style={{ flexShrink: 0 }}>
+          <div>
+            <p style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.9375rem', textTransform: 'capitalize' }}>
+              {niche}
+            </p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginTop: 2 }}>{total} contatos</p>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: 6 }}><IconX /></button>
         </div>
 
-        <div className="overflow-auto flex-1">
+        <div style={{ flex: 1, overflow: 'auto' }}>
           {loading ? (
-            <p className="text-gray-500 text-sm p-6">Carregando...</p>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12 }}>
+                  <div className="shimmer" style={{ height: 12, width: 130 }} />
+                  <div className="shimmer" style={{ height: 12, width: 90 }} />
+                </div>
+              ))}
+            </div>
           ) : contacts.length === 0 ? (
-            <p className="text-gray-500 text-sm p-6">Nenhum contato encontrado.</p>
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-3)' }}>Nenhum contato encontrado.</div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-gray-800 text-gray-500">
-                  <th className="text-left px-5 py-3 font-medium">Telefone</th>
-                  <th className="text-left px-5 py-3 font-medium">Nome</th>
-                  <th className="text-center px-5 py-3 font-medium">Enviados</th>
-                  <th className="px-5 py-3"></th>
+                <tr>
+                  <th>Telefone</th>
+                  <th>Nome</th>
+                  <th style={{ textAlign: 'center' }}>Enviados</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {contacts.map(c => (
-                  <tr key={c.id} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50">
-                    <td className="px-5 py-2.5 font-mono text-xs text-gray-300">{c.phone}</td>
-                    <td className="px-5 py-2.5 text-gray-400">{c.name || '—'}</td>
-                    <td className="px-5 py-2.5 text-center">
-                      <span className={c.sent_count > 0 ? 'text-green-400' : 'text-gray-600'}>{c.sent_count}</span>
+                  <tr key={c.id}>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text)' }}>{c.phone}</td>
+                    <td>{c.name || <span style={{ color: 'var(--text-3)' }}>—</span>}</td>
+                    <td style={{ textAlign: 'center', color: c.sent_count > 0 ? 'var(--accent)' : 'var(--text-3)', fontWeight: c.sent_count > 0 ? 500 : 400 }}>
+                      {c.sent_count}
                     </td>
-                    <td className="px-5 py-2.5 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       <button
                         onClick={() => handleDelete(c.id)}
-                        className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                        className="btn btn-sm"
+                        style={{ background: 'transparent', color: 'var(--text-3)', border: 'none', padding: '3px 8px' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; }}
                       >
                         Remover
                       </button>
@@ -76,22 +92,10 @@ export default function ContactListModal({ niche, onClose }) {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800 shrink-0">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage(p => p - 1)}
-              className="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-            >
-              ← Anterior
-            </button>
-            <span className="text-xs text-gray-600">{page} / {totalPages}</span>
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage(p => p + 1)}
-              className="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-            >
-              Próxima →
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <button className="btn btn-ghost btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Anterior</button>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-3)' }}>{page} / {totalPages}</span>
+            <button className="btn btn-ghost btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Próxima →</button>
           </div>
         )}
       </div>

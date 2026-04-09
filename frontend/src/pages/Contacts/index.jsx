@@ -4,6 +4,13 @@ import ContactListModal from './ContactListModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function IconPlus() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+}
+function IconEmpty() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+}
+
 export default function Contacts() {
   const [niches, setNiches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,51 +36,59 @@ export default function Contacts() {
     load();
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-gray-500">Carregando...</p>
-      </div>
-    );
-  }
+  const totalContacts = niches.reduce((acc, n) => acc + n.total, 0);
+  const totalAvailable = niches.reduce((acc, n) => acc + n.available, 0);
 
   return (
-    <div className="p-8">
+    <div className="animate-fade-in" style={{ padding: 32 }}>
       {showImport && (
-        <ImportModal
-          onClose={() => setShowImport(false)}
-          onDone={() => { setShowImport(false); load(); }}
-        />
+        <ImportModal onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); load(); }} />
       )}
       {viewNiche && (
         <ContactListModal niche={viewNiche} onClose={() => setViewNiche(null)} />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Contatos</h2>
-        <button
-          onClick={() => setShowImport(true)}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Importar via Apify
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Contatos</h2>
+          {!loading && niches.length > 0 && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginTop: 4 }}>
+              {totalContacts.toLocaleString('pt-BR')} total · {totalAvailable.toLocaleString('pt-BR')} disponíveis
+            </p>
+          )}
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowImport(true)}>
+          <IconPlus /> Importar via Apify
         </button>
       </div>
 
-      {niches.length === 0 ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-          <p className="text-gray-500 mb-2">Nenhum contato importado ainda.</p>
-          <p className="text-gray-600 text-sm">Clique em "Importar via Apify" para buscar leads.</p>
+      {loading ? (
+        <div className="card-lg" style={{ overflow: 'hidden' }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16, alignItems: 'center' }}>
+              <div className="shimmer" style={{ height: 13, width: 120 }} />
+              <div className="shimmer" style={{ height: 5, width: 100, borderRadius: 99 }} />
+            </div>
+          ))}
+        </div>
+      ) : niches.length === 0 ? (
+        <div className="card-lg">
+          <div className="empty-state">
+            <div className="empty-icon"><IconEmpty /></div>
+            <p style={{ color: 'var(--text-2)', fontWeight: 500 }}>Nenhum contato importado</p>
+            <p style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>Clique em "Importar via Apify" para buscar leads</p>
+          </div>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card-lg" style={{ overflow: 'hidden' }}>
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-gray-800 text-gray-500">
-                <th className="text-left px-5 py-3 font-medium">Nicho</th>
-                <th className="text-right px-5 py-3 font-medium">Total</th>
-                <th className="text-right px-5 py-3 font-medium">Disponíveis</th>
-                <th className="text-right px-5 py-3 font-medium">Enviados</th>
-                <th className="text-right px-5 py-3 font-medium">Ações</th>
+              <tr>
+                <th>Nicho</th>
+                <th style={{ textAlign: 'right' }}>Total</th>
+                <th style={{ textAlign: 'right' }}>Disponíveis</th>
+                <th style={{ textAlign: 'right' }}>Enviados</th>
+                <th style={{ textAlign: 'right' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -81,30 +96,38 @@ export default function Contacts() {
                 const sent = n.total - n.available;
                 const pct  = n.total > 0 ? Math.round((sent / n.total) * 100) : 0;
                 return (
-                  <tr key={n.niche} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50">
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-white capitalize">{n.niche}</p>
-                      <div className="w-32 bg-gray-700 rounded-full h-1 mt-1">
-                        <div className="bg-green-500 h-1 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  <tr key={n.niche}>
+                    <td>
+                      <div>
+                        <p style={{ fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', marginBottom: 5 }}>{n.niche}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="progress-bar" style={{ width: 100 }}>
+                            <div className="progress-fill" style={{ width: `${pct}%`, background: 'var(--accent)' }} />
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{pct}% enviado</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-right text-gray-400">{n.total}</td>
-                    <td className="px-5 py-3 text-right text-green-400">{n.available}</td>
-                    <td className="px-5 py-3 text-right text-gray-500">{sent}</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
+                    <td style={{ textAlign: 'right', fontWeight: 500, color: 'var(--text)' }}>{n.total.toLocaleString('pt-BR')}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 500 }}>{n.available.toLocaleString('pt-BR')}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-3)' }}>{sent.toLocaleString('pt-BR')}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                         <button
                           onClick={() => setViewNiche(n.niche)}
-                          className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                          className="btn btn-secondary btn-sm"
                         >
                           Ver contatos
                         </button>
                         <button
                           onClick={() => handleDeleteNiche(n.niche)}
                           disabled={deleting === n.niche}
-                          className="text-xs text-red-500 hover:text-red-400 disabled:opacity-50 transition-colors"
+                          className="btn btn-sm"
+                          style={{ background: 'transparent', color: 'var(--text-3)', border: '1px solid transparent' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'transparent'; }}
                         >
-                          {deleting === n.niche ? '...' : 'Deletar nicho'}
+                          {deleting === n.niche ? '...' : 'Deletar'}
                         </button>
                       </div>
                     </td>
