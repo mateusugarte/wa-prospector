@@ -69,7 +69,7 @@ export default function CampaignDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
-  const [template, setTemplate] = useState(null);
+  const [templates, setTemplates] = useState([]);
   const [instance, setInstance] = useState(null);
   const [dispatches, setDispatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,21 +84,25 @@ export default function CampaignDetail() {
   async function loadAll() {
     const { data: camp } = await supabase
       .from('campaigns')
-      .select('id, name, status, total_leads, sent_count, failed_count, interval_min, interval_max, template_id, instance_id, created_at')
+      .select('id, name, status, total_leads, sent_count, failed_count, interval_min, interval_max, template_id, template_ids, instance_id, created_at')
       .eq('id', id)
       .single();
     if (!camp) { navigate('/campaigns'); return; }
     setCampaign(camp);
 
-    const [{ data: tpl }, { data: inst }, dispRes] = await Promise.all([
-      camp.template_id
-        ? supabase.from('templates').select('id, name, content').eq('id', camp.template_id).single()
-        : Promise.resolve({ data: null }),
+    // Resolve IDs de templates (suporte a múltiplos e campo legado)
+    const allTemplateIds = (camp.template_ids?.length ? camp.template_ids : null)
+      ?? (camp.template_id ? [camp.template_id] : []);
+
+    const [tplResult, { data: inst }, dispRes] = await Promise.all([
+      allTemplateIds.length
+        ? supabase.from('templates').select('id, name, content').in('id', allTemplateIds)
+        : Promise.resolve({ data: [] }),
       supabase.from('wa_instances').select('id, name, phone, status').eq('instance_id', camp.instance_id).single(),
       fetch(`${API_URL}/api/campaigns/${id}/dispatches`).then(r => r.json()),
     ]);
 
-    setTemplate(tpl);
+    setTemplates(tplResult.data ?? []);
     setInstance(inst);
     setDispatches(Array.isArray(dispRes) ? dispRes : []);
     setLoading(false);
@@ -192,6 +196,7 @@ export default function CampaignDetail() {
   const pending  = dispatches.filter(d => d.status === 'pending').length;
   const sent     = dispatches.filter(d => d.status === 'sent').length;
   const failed   = dispatches.filter(d => d.status === 'failed').length;
+  const hasTemplates = templates.length > 0;
   const isShuffled = dispatches.some(d => d.message_sent && d.status === 'pending');
   const canEdit  = campaign.status === 'draft' || campaign.status === 'paused';
   const canAddContacts = campaign.status !== 'cancelled' && campaign.status !== 'completed';
@@ -303,19 +308,34 @@ export default function CampaignDetail() {
       </div>
 
       {/* Two-column: template preview + progress/countdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: template ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 20 }}>
-        {template && (
-          <div className="card" style={{ padding: '18px 20px' }}>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-              Template · {template.name}
-            </p>
-            <pre style={{
-              fontFamily: 'inherit', fontSize: '0.875rem', color: 'var(--text-2)',
-              whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0,
-              maxHeight: 120, overflow: 'auto',
-            }}>
-              {template.content}
-            </pre>
+      <div style={{ display: 'grid', gridTemplateColumns: hasTemplates ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 20 }}>
+        {hasTemplates && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {templates.map((tpl, idx) => (
+              <div key={tpl.id} className="card" style={{ padding: '14px 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
+                    Template {templates.length > 1 ? `${idx + 1}` : ''} · {tpl.name}
+                  </p>
+                  {templates.length > 1 && (
+                    <span style={{
+                      fontSize: '0.7rem', padding: '1px 6px', borderRadius: 99,
+                      background: 'rgba(168,85,247,0.12)', color: '#a855f7',
+                      fontWeight: 500,
+                    }}>
+                      aleatório
+                    </span>
+                  )}
+                </div>
+                <pre style={{
+                  fontFamily: 'inherit', fontSize: '0.8125rem', color: 'var(--text-2)',
+                  whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0,
+                  maxHeight: 80, overflow: 'auto',
+                }}>
+                  {tpl.content}
+                </pre>
+              </div>
+            ))}
           </div>
         )}
 
@@ -378,7 +398,7 @@ export default function CampaignDetail() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                 <button
                   onClick={handleShuffle}
-                  disabled={shuffling || !campaign.template_id}
+                  disabled={shuffling || !hasTemplates}
                   className="btn btn-sm"
                   style={{
                     background: isShuffled ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.12)',
@@ -388,8 +408,11 @@ export default function CampaignDetail() {
                 >
                   <IconShuffle /> {shuffling ? 'Gerando...' : isShuffled ? 'Misturar novamente' : 'Misturar'}
                 </button>
-                {!campaign.template_id && (
+                {!hasTemplates && (
                   <p style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Sem template</p>
+                )}
+                {hasTemplates && templates.length > 1 && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{templates.length} templates · escolha aleatória</p>
                 )}
                 {shuffleMsg && (
                   <p style={{ fontSize: '0.75rem', color: shuffleMsg.ok ? 'var(--accent)' : 'var(--danger)' }}>{shuffleMsg.text}</p>

@@ -66,19 +66,24 @@ async function _execute(campaignId, runner, io) {
   // Busca dados da campanha
   const { data: campaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, instance_id, interval_min, interval_max, template_id')
+    .select('id, instance_id, interval_min, interval_max, template_id, template_ids')
     .eq('id', campaignId)
     .single();
 
   if (campErr || !campaign) throw new Error('Campanha não encontrada');
 
-  const { data: template, error: tplErr } = await supabase
+  // Suporte a múltiplos templates — escolhe aleatório por envio se não houver shuffle pré-gerado
+  const allTemplateIds = (campaign.template_ids?.length ? campaign.template_ids : null)
+    ?? (campaign.template_id ? [campaign.template_id] : []);
+
+  if (!allTemplateIds.length) throw new Error('Campanha sem template configurado');
+
+  const { data: templates, error: tplErr } = await supabase
     .from('templates')
     .select('content')
-    .eq('id', campaign.template_id)
-    .single();
+    .in('id', allTemplateIds);
 
-  if (tplErr || !template) throw new Error('Template não encontrado na campanha');
+  if (tplErr || !templates?.length) throw new Error('Templates não encontrados na campanha');
 
   await supabase.from('campaigns').update({ status: 'running' }).eq('id', campaignId);
   io?.emit('campaign:started', { campaignId });
@@ -108,8 +113,9 @@ async function _execute(campaignId, runner, io) {
     }
 
     const dispatch = dispatches[0];
-    // Usa mensagem pré-gerada pelo shuffle, ou gera agora
-    const message = dispatch.message_sent || spin(template.content);
+    // Usa mensagem pré-gerada pelo shuffle, ou escolhe template aleatório e gera agora
+    const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+    const message = dispatch.message_sent || spin(randomTemplate.content);
     // Usa delay pré-definido pelo shuffle, ou gera agora
     const typingDelay = dispatch.typing_delay ?? getTypingDelay();
 

@@ -12,11 +12,16 @@ router.get('/intervals', (req, res) => {
 // POST /api/campaigns — cria campanha (modo automático: niche+quantity | modo manual: phones)
 router.post('/', async (req, res) => {
   try {
-    const { name, template_id, instance_id, interval_min, interval_max, phones, niche, quantity } = req.body;
+    const { name, template_id, template_ids, instance_id, interval_min, interval_max, phones, niche, quantity } = req.body;
 
     if (!name || !instance_id || !interval_min || !interval_max) {
       return res.status(400).json({ error: 'name, instance_id, interval_min e interval_max são obrigatórios' });
     }
+
+    // Normaliza: template_ids tem prioridade; template_id legado vira array de 1
+    const resolvedTemplateIds = Array.isArray(template_ids) && template_ids.length
+      ? template_ids
+      : (template_id ? [template_id] : []);
 
     let phoneList = [];
 
@@ -56,7 +61,8 @@ router.post('/', async (req, res) => {
       .from('campaigns')
       .insert({
         name,
-        template_id: template_id || null,
+        template_id: resolvedTemplateIds[0] || null,
+        template_ids: resolvedTemplateIds,
         instance_id,
         interval_min: Number(interval_min),
         interval_max: Number(interval_max),
@@ -85,16 +91,27 @@ router.post('/', async (req, res) => {
 // PUT /api/campaigns/:id — edita campanha (apenas se draft ou paused)
 router.put('/:id', async (req, res) => {
   try {
-    const { name, template_id, instance_id, interval_min, interval_max } = req.body;
+    const { name, template_id, template_ids, instance_id, interval_min, interval_max } = req.body;
 
     const { data: current } = await supabase.from('campaigns').select('status').eq('id', req.params.id).single();
     if (current?.status === 'running') {
       return res.status(400).json({ error: 'Pause a campanha antes de editar' });
     }
 
+    const resolvedTemplateIds = Array.isArray(template_ids) && template_ids.length
+      ? template_ids
+      : (template_id ? [template_id] : []);
+
     const { data, error } = await supabase
       .from('campaigns')
-      .update({ name, template_id: template_id || null, instance_id, interval_min, interval_max })
+      .update({
+        name,
+        template_id: resolvedTemplateIds[0] || null,
+        template_ids: resolvedTemplateIds,
+        instance_id,
+        interval_min,
+        interval_max,
+      })
       .eq('id', req.params.id)
       .select()
       .single();
@@ -263,21 +280,27 @@ router.post('/:id/shuffle', async (req, res) => {
   try {
     const { data: campaign, error: campErr } = await supabase
       .from('campaigns')
-      .select('template_id, status')
+      .select('template_id, template_ids, status')
       .eq('id', req.params.id)
       .single();
 
     if (campErr || !campaign) return res.status(404).json({ error: 'Campanha não encontrada' });
     if (campaign.status === 'running') return res.status(400).json({ error: 'Pause a campanha antes de misturar' });
-    if (!campaign.template_id) return res.status(400).json({ error: 'Campanha sem template — selecione um template primeiro' });
 
-    const { data: template, error: tplErr } = await supabase
+    // Resolve lista de template IDs (suporte a múltiplos e ao campo legado)
+    const allTemplateIds = (campaign.template_ids?.length ? campaign.template_ids : null)
+      ?? (campaign.template_id ? [campaign.template_id] : []);
+
+    if (!allTemplateIds.length) {
+      return res.status(400).json({ error: 'Campanha sem template — selecione ao menos um template primeiro' });
+    }
+
+    const { data: templates, error: tplErr } = await supabase
       .from('templates')
-      .select('content')
-      .eq('id', campaign.template_id)
-      .single();
+      .select('id, content, name')
+      .in('id', allTemplateIds);
 
-    if (tplErr || !template) return res.status(400).json({ error: 'Template não encontrado' });
+    if (tplErr || !templates?.length) return res.status(400).json({ error: 'Templates não encontrados' });
 
     const { data: dispatches, error: dispErr } = await supabase
       .from('dispatches')
@@ -290,21 +313,21 @@ router.post('/:id/shuffle', async (req, res) => {
       return res.status(400).json({ error: 'Nenhum disparo pendente para misturar' });
     }
 
-    // Gera mensagem única e delay individual para cada contato
-    // Usa update (não upsert) para evitar tentativa de INSERT que viola NOT NULL em campaign_id
+    // Para cada contato: escolhe template aleatório e gera mensagem única
     for (const d of dispatches) {
+      const tpl = templates[Math.floor(Math.random() * templates.length)];
       const { error: upErr } = await supabase
         .from('dispatches')
         .update({
-          message_sent: spin(template.content),
+          message_sent: spin(tpl.content),
           typing_delay: getTypingDelay(),
         })
         .eq('id', d.id);
       if (upErr) throw new Error(upErr.message);
     }
 
-    console.log(`[shuffle] ${dispatches.length} mensagens geradas para campanha ${req.params.id}`);
-    res.json({ ok: true, count: dispatches.length });
+    console.log(`[shuffle] ${dispatches.length} mensagens geradas (${templates.length} template${templates.length !== 1 ? 's' : ''}) para campanha ${req.params.id}`);
+    res.json({ ok: true, count: dispatches.length, templates: templates.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

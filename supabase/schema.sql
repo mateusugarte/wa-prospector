@@ -56,7 +56,8 @@ create table campaigns (
   id           uuid primary key default gen_random_uuid(),
   name         text not null,
   status       text not null default 'draft', -- draft | running | paused | completed | cancelled
-  template_id  uuid references templates(id) on delete set null,
+  template_id  uuid references templates(id) on delete set null, -- legado (mantido para compat)
+  template_ids uuid[] not null default '{}',  -- múltiplos templates — seleção aleatória no shuffle
   instance_id  text not null,                  -- instance_id da wa_instances (token)
   interval_min integer not null default 8,     -- minutos
   interval_max integer not null default 20,    -- minutos
