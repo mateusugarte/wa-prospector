@@ -33,7 +33,6 @@ export default function Campaigns() {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
   const [editCampaign, setEditCampaign] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
@@ -70,11 +69,11 @@ export default function Campaigns() {
 
   return (
     <div className="animate-fade-in" style={{ padding: 32 }}>
-      {(showModal || editCampaign) && (
+      {editCampaign && (
         <CampaignModal
           existing={editCampaign}
-          onClose={() => { setShowModal(false); setEditCampaign(null); }}
-          onSaved={() => { setShowModal(false); setEditCampaign(null); load(); }}
+          onClose={() => setEditCampaign(null)}
+          onSaved={() => { setEditCampaign(null); load(); }}
         />
       )}
 
@@ -88,7 +87,7 @@ export default function Campaigns() {
             </p>
           )}
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={() => navigate('/campaigns/new')}>
           <IconPlus /> Nova campanha
         </button>
       </div>

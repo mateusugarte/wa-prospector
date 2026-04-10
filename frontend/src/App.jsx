@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard/index';
 import Campaigns from './pages/Campaigns/index';
 import CampaignDetail from './pages/Campaigns/CampaignDetail';
+import NewCampaign from './pages/Campaigns/NewCampaign';
 import Contacts from './pages/Contacts/index';
 import Templates from './pages/Templates/index';
 import Settings from './pages/Settings/index';
@@ -16,6 +17,7 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="campaigns" element={<Campaigns />} />
+          <Route path="campaigns/new" element={<NewCampaign />} />
           <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="contacts" element={<Contacts />} />
           <Route path="templates" element={<Templates />} />
