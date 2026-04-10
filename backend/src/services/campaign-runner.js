@@ -66,7 +66,7 @@ async function _execute(campaignId, runner, io) {
   // Busca dados da campanha
   const { data: campaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, instance_id, interval_min, interval_max, template_id, template_ids')
+    .select('id, instance_id, interval_min, interval_max, template_id, template_ids, media_url, media_type')
     .eq('id', campaignId)
     .single();
 
@@ -122,6 +122,9 @@ async function _execute(campaignId, runner, io) {
     // Envia mensagem
     try {
       await uazapi.sendTextByToken(campaign.instance_id, dispatch.phone, message, typingDelay);
+      if (campaign.media_url) {
+        await uazapi.sendMediaByToken(campaign.instance_id, dispatch.phone, campaign.media_type || 'image', campaign.media_url);
+      }
       await supabase.from('dispatches').update({
         status: 'sent',
         message_sent: message,

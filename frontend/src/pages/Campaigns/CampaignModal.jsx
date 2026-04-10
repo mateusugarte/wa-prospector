@@ -30,6 +30,9 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
   const [instances, setInstances] = useState([]);
   const [intervals, setIntervals] = useState([]);
   const [niches, setNiches] = useState([]);
+  const [hasMedia, setHasMedia] = useState(!!(existing?.media_url));
+  const [mediaUrl, setMediaUrl] = useState(existing?.media_url || '');
+  const [mediaType, setMediaType] = useState(existing?.media_type || 'image');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -82,6 +85,8 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
         instance_id: instanceId,
         interval_min: selectedInterval.min,
         interval_max: selectedInterval.max,
+        media_url: hasMedia && mediaUrl.trim() ? mediaUrl.trim() : null,
+        media_type: mediaType,
       };
 
       if (isEdit) {
@@ -294,6 +299,69 @@ export default function CampaignModal({ existing, onClose, onSaved }) {
               )}
             </div>
           )}
+
+          {/* Mídia */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="label" style={{ margin: 0 }}>Enviar mídia junto?</label>
+              <button
+                type="button"
+                onClick={() => setHasMedia(p => !p)}
+                style={{
+                  width: 40, height: 22, borderRadius: 99, border: 'none', cursor: 'pointer',
+                  background: hasMedia ? 'var(--accent)' : 'var(--surface-3)',
+                  position: 'relative', transition: 'background 0.2s ease', flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3, left: hasMedia ? 20 : 3,
+                  width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.2s ease',
+                }} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>
+              Após o texto, envia uma imagem, vídeo ou outro arquivo via URL pública
+            </p>
+
+            {hasMedia && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label className="label">Tipo de mídia</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    {['image', 'video', 'audio', 'document'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setMediaType(t)}
+                        style={{
+                          padding: '7px 6px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 500,
+                          border: `1px solid ${mediaType === t ? 'var(--accent)' : 'var(--border)'}`,
+                          background: mediaType === t ? 'var(--accent-dim)' : 'var(--surface-2)',
+                          color: mediaType === t ? 'var(--accent)' : 'var(--text-2)',
+                          cursor: 'pointer', transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {t === 'image' ? 'Imagem' : t === 'video' ? 'Vídeo' : t === 'audio' ? 'Áudio' : 'Doc'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="label">URL pública da mídia</label>
+                  <input
+                    className="input"
+                    value={mediaUrl}
+                    onChange={e => setMediaUrl(e.target.value)}
+                    placeholder="https://exemplo.com/video.mp4"
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>
+                    O link precisa ser acessível publicamente (sem login)
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           {error && <p style={{ fontSize: '0.875rem', color: 'var(--danger)' }}>{error}</p>}
         </div>

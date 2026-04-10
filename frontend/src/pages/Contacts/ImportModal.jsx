@@ -11,6 +11,8 @@ export default function ImportModal({ onClose, onDone }) {
   const [searchTerms, setSearchTerms] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [maxResults, setMaxResults] = useState(100);
+  const [minReviews, setMinReviews] = useState(0);
+  const [maxReviews, setMaxReviews] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -20,7 +22,7 @@ export default function ImportModal({ onClose, onDone }) {
     try {
       const res = await fetch(`${API_URL}/api/contacts/import`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, searchTerms, locationQuery, maxResults: Number(maxResults) }),
+        body: JSON.stringify({ niche, searchTerms, locationQuery, maxResults: Number(maxResults), minReviews: Number(minReviews), maxReviews: maxReviews !== '' ? Number(maxReviews) : null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -66,6 +68,19 @@ export default function ImportModal({ onClose, onDone }) {
               <label className="label">Quantidade</label>
               <input className="input" type="number" value={maxResults} onChange={e => setMaxResults(e.target.value)} min={10} max={1000} />
               <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>Máx. de resultados</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label className="label">Mín. de avaliações</label>
+              <input className="input" type="number" value={minReviews} onChange={e => setMinReviews(e.target.value)} min={0} placeholder="0" />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>Pelo menos N avaliações. 0 = sem filtro.</p>
+            </div>
+            <div>
+              <label className="label">Máx. de avaliações</label>
+              <input className="input" type="number" value={maxReviews} onChange={e => setMaxReviews(e.target.value)} min={0} placeholder="Sem limite" />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 4 }}>Exclui negócios muito grandes. Vazio = sem limite.</p>
             </div>
           </div>
 

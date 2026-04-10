@@ -68,7 +68,7 @@ router.get('/available', async (req, res) => {
 // POST /api/contacts/import — importar via Apify Google Places
 router.post('/import', async (req, res) => {
   try {
-    const { niche, searchTerms, locationQuery = '', maxResults = 100 } = req.body;
+    const { niche, searchTerms, locationQuery = '', maxResults = 100, minReviews = 0, maxReviews = null } = req.body;
 
     if (!niche || !searchTerms) {
       return res.status(400).json({ error: 'niche e searchTerms são obrigatórios' });
@@ -77,8 +77,10 @@ router.post('/import', async (req, res) => {
     const token = getApifyToken();
     const terms = searchTerms.split('\n').map(s => s.trim()).filter(Boolean);
     const perTerm = Math.max(1, Math.ceil(Number(maxResults) / terms.length));
+    const minReviewsNum = Math.max(0, Number(minReviews) || 0);
+    const maxReviewsNum = maxReviews !== null && maxReviews !== '' ? Math.max(0, Number(maxReviews)) : null;
 
-    console.log(`[apify] iniciando | nicho: ${niche} | termos: ${terms.join(', ')} | local: ${locationQuery || 'sem filtro'} | por termo: ${perTerm}`);
+    console.log(`[apify] iniciando | nicho: ${niche} | termos: ${terms.join(', ')} | local: ${locationQuery || 'sem filtro'} | por termo: ${perTerm} | avaliações: ${minReviewsNum}–${maxReviewsNum ?? '∞'}`);
 
     // Responde imediatamente e processa em background
     res.json({ status: 'running', message: 'Importação iniciada, aguarde alguns minutos.' });
@@ -125,7 +127,17 @@ router.post('/import', async (req, res) => {
 
         const contacts = [];
         let semTelefone = 0;
+        let semAvaliacoes = 0;
         for (const item of items) {
+          // Filtro por faixa de avaliações
+          if (minReviewsNum > 0 || maxReviewsNum !== null) {
+            const reviewCount = item.reviewsCount ?? item.totalReviews ?? item.reviewCount ?? 0;
+            if (reviewCount < minReviewsNum || (maxReviewsNum !== null && reviewCount > maxReviewsNum)) {
+              semAvaliacoes++;
+              continue;
+            }
+          }
+
           const rawPhone =
             item.phone || item.phoneNumber || item.telefone ||
             item.contact?.phone || item.phones?.[0] ||
@@ -145,7 +157,7 @@ router.post('/import', async (req, res) => {
           }
         }
 
-        console.log(`[apify] com telefone: ${contacts.length} | sem telefone: ${semTelefone}`);
+        console.log(`[apify] com telefone: ${contacts.length} | sem telefone: ${semTelefone} | filtrados por avaliações: ${semAvaliacoes}`);
 
         if (contacts.length > 0) {
           const { error: upsertErr } = await supabase.from('contacts')

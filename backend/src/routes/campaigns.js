@@ -12,7 +12,7 @@ router.get('/intervals', (req, res) => {
 // POST /api/campaigns — cria campanha (modo automático: niche+quantity | modo manual: phones)
 router.post('/', async (req, res) => {
   try {
-    const { name, template_id, template_ids, instance_id, interval_min, interval_max, phones, niche, quantity } = req.body;
+    const { name, template_id, template_ids, instance_id, interval_min, interval_max, phones, niche, quantity, media_url, media_type } = req.body;
 
     if (!name || !instance_id || !interval_min || !interval_max) {
       return res.status(400).json({ error: 'name, instance_id, interval_min e interval_max são obrigatórios' });
@@ -70,6 +70,8 @@ router.post('/', async (req, res) => {
         total_leads: phoneList.length,
         sent_count: 0,
         failed_count: 0,
+        media_url: media_url || null,
+        media_type: media_type || 'image',
       })
       .select()
       .single();
@@ -91,7 +93,7 @@ router.post('/', async (req, res) => {
 // PUT /api/campaigns/:id — edita campanha (apenas se draft ou paused)
 router.put('/:id', async (req, res) => {
   try {
-    const { name, template_id, template_ids, instance_id, interval_min, interval_max } = req.body;
+    const { name, template_id, template_ids, instance_id, interval_min, interval_max, media_url, media_type } = req.body;
 
     const { data: current } = await supabase.from('campaigns').select('status').eq('id', req.params.id).single();
     if (current?.status === 'running') {
@@ -111,6 +113,8 @@ router.put('/:id', async (req, res) => {
         instance_id,
         interval_min,
         interval_max,
+        media_url: media_url !== undefined ? (media_url || null) : undefined,
+        media_type: media_type || 'image',
       })
       .eq('id', req.params.id)
       .select()

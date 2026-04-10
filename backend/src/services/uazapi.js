@@ -157,6 +157,12 @@ async function checkNumberByToken(instanceToken, phone) {
   return data;
 }
 
+async function sendMediaByToken(instanceToken, number, type, fileUrl) {
+  const client = getInstanceClient(instanceToken);
+  const { data } = await client.post('/send/media', { number, type, file: fileUrl });
+  return data;
+}
+
 module.exports = {
   // Admin
   createInstance,
@@ -173,4 +179,5 @@ module.exports = {
   sendTextByToken,
   sendTypingByToken,
   checkNumberByToken,
+  sendMediaByToken,
 };

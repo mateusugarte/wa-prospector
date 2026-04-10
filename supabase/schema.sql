@@ -64,6 +64,8 @@ create table campaigns (
   total_leads  integer not null default 0,
   sent_count   integer not null default 0,
   failed_count integer not null default 0,
+  media_url    text,                              -- URL pública da mídia (opcional)
+  media_type   text not null default 'image',    -- image | video | audio | document
   created_at   timestamptz not null default now()
 );
 
