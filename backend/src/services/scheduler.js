@@ -49,8 +49,17 @@ function getTypingDelay() {
   return Math.min(seconds * 1000 + ms, 5000);          // máx 5000ms
 }
 
+/**
+ * Delay de digitação para Reativação: 2000–3800ms
+ * Faixa menor que campanhas normais (2000–5000ms).
+ * @returns {number} delay em milissegundos
+ */
+function getReactivationTypingDelay() {
+  return 2000 + Math.floor(Math.random() * 1801); // 2000 a 3800ms
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { getRandomDelay, formatDelay, getTypingDelay, sleep, INTERVAL_OPTIONS };
+module.exports = { getRandomDelay, formatDelay, getTypingDelay, getReactivationTypingDelay, sleep, INTERVAL_OPTIONS };

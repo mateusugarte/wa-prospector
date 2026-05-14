@@ -8,6 +8,8 @@ import NewCampaign from './pages/Campaigns/NewCampaign';
 import Contacts from './pages/Contacts/index';
 import Templates from './pages/Templates/index';
 import Settings from './pages/Settings/index';
+import ReativarContatos from './pages/Reativar/ReativarContatos';
+import ReativarDetalhe from './pages/Reativar/ReativarDetalhe';
 
 export default function App() {
   return (
@@ -22,6 +24,8 @@ export default function App() {
           <Route path="contacts" element={<Contacts />} />
           <Route path="templates" element={<Templates />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="reativar" element={<ReativarContatos />} />
+          <Route path="reativar/:id" element={<ReativarDetalhe />} />
         </Route>
       </Routes>
     </BrowserRouter>

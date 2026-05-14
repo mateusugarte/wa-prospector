@@ -9,6 +9,7 @@
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@supabase/supabase-js": "^2.39.0",
     "apify-client": "^2.9.4",
     "axios": "^1.6.0",

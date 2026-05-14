@@ -9,6 +9,8 @@ const instancesRouter = require('./routes/instances');
 const campaignsRouter = require('./routes/campaigns');
 const contactsRouter = require('./routes/contacts');
 const { resetStaleRunners } = require('./services/campaign-runner');
+const { resetStaleReactivationRunners } = require('./services/reactivation-runner');
+const reactivationRouter = require('./routes/reactivation');
 
 const app = express();
 const server = http.createServer(app);
@@ -31,6 +33,7 @@ app.set('io', io);
 app.use('/api/instances', instancesRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/contacts', contactsRouter);
+app.use('/api/reactivation', reactivationRouter);
 
 // Health check leve — usado pelo EasyPanel/Docker, não faz query no banco
 app.get('/health', (req, res) => {
@@ -61,4 +64,10 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`[server] Backend rodando em http://0.0.0.0:${PORT}`);
   await resetStaleRunners();
   console.log('[server] Campanhas travadas resetadas para pausado');
+  await resetStaleReactivationRunners();
+  console.log('[server] Campanhas de reativação travadas resetadas para pausado');
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('[server] ⚠️  ANTHROPIC_API_KEY não configurada — módulo de reativação não funcionará');
+  }
 });

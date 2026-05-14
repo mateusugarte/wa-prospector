@@ -40,6 +40,14 @@ function IconSettings() {
     </svg>
   );
 }
+function IconReactivate() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  );
+}
 function IconSun() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -62,6 +70,7 @@ function IconMoon() {
 const navItems = [
   { to: '/dashboard', label: 'Dashboard',  Icon: IconDashboard },
   { to: '/campaigns', label: 'Campanhas',  Icon: IconCampaigns },
+  { to: '/reativar',  label: 'Reativar',   Icon: IconReactivate },
   { to: '/contacts',  label: 'Contatos',   Icon: IconContacts },
   { to: '/templates', label: 'Templates',  Icon: IconTemplates },
   { to: '/settings',  label: 'WhatsApp',   Icon: IconSettings },
