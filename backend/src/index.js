@@ -15,15 +15,29 @@ const reactivationRouter = require('./routes/reactivation');
 const app = express();
 const server = http.createServer(app);
 
+// Aceita múltiplas origens: FRONTEND_URL pode ser lista separada por vírgula
+// ou qualquer subdomínio *.vercel.app do projeto
+function buildCorsOrigin() {
+  const raw = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowed = raw.split(',').map(s => s.trim().replace(/\/$/, ''));
+  return function(origin, cb) {
+    if (!origin) return cb(null, true); // curl / server-to-server
+    const clean = origin.replace(/\/$/, '');
+    if (allowed.some(a => clean === a) || /^https:\/\/crm-alliance[a-z0-9-]*\.vercel\.app$/.test(clean)) {
+      return cb(null, true);
+    }
+    cb(new Error('CORS: origem não permitida — ' + origin));
+  };
+}
+
+const corsOrigin = buildCorsOrigin();
+
 const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: corsOrigin, methods: ['GET', 'POST'] },
 });
 
 // Middlewares
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 // Disponibiliza io globalmente para rotas/workers
